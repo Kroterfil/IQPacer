@@ -134,24 +134,36 @@ class PacerView extends WatchUi.DataField {
         }
     }
 
-    // Fuera de segmento
+    // Fuera de segmento: de texto largo a corto hasta que quepa en el hueco
     private function drawStatus(dc, w, h, st) as Void {
-        var txt = "--";
+        var opts = ["--"];
         if (st == ST_IDLE) {
             var d = _engine.nearDist;
             if (d >= 0 && d < 10000) {
-                txt = fmtKm(d);
+                var shortTxt = d.toNumber().format("%d");
+                if (d >= 1000) {
+                    var t = (d / 100).toNumber();
+                    shortTxt = (t / 10).format("%d") + "," + (t % 10).format("%d");
+                }
+                opts = [fmtKm(d), shortTxt];
             }
         } else if (st == ST_ARMED) {
-            txt = "Salida " + _engine.nearDist.toNumber().format("%d") + " m";
+            var m = _engine.nearDist.toNumber().format("%d");
+            opts = [m + " m", m];
         } else if (st == ST_ABORT) {
-            txt = "Fuera de ruta";
+            opts = ["Fuera de ruta", "Fuera", "X"];
         }
-        var font = Graphics.FONT_LARGE;
-        if (dc.getTextWidthInPixels(txt, font) > w - 8 || dc.getFontHeight(font) > h) {
-            font = Graphics.FONT_SMALL;
+        var fonts = [Graphics.FONT_LARGE, Graphics.FONT_MEDIUM, Graphics.FONT_SMALL];
+        for (var i = 0; i < opts.size(); i++) {
+            for (var j = 0; j < fonts.size(); j++) {
+                if (dc.getTextWidthInPixels(opts[i], fonts[j]) <= w - 8 && dc.getFontHeight(fonts[j]) <= h) {
+                    dc.drawText(w / 2, h / 2, fonts[j], opts[i], Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+                    return;
+                }
+            }
         }
-        dc.drawText(w / 2, h / 2, font, txt, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
+        var last = opts[opts.size() - 1];
+        dc.drawText(w / 2, h / 2, Graphics.FONT_XTINY, last, Graphics.TEXT_JUSTIFY_CENTER | Graphics.TEXT_JUSTIFY_VCENTER);
     }
 
     // ---------- Formatos ----------
