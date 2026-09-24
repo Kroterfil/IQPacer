@@ -9,6 +9,11 @@ module Rez {
         (:initialized) var LauncherIcon as ResourceId;
     } // Drawables
 
+    module JsonData {
+        (:initialized) var MontanaPresillas as ResourceId;
+        (:initialized) var MontanaTunel as ResourceId;
+    } // JsonData
+
     module Strings {
         (:initialized) var AppName as ResourceId;
     } // Strings

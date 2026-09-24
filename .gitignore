@@ -216,3 +216,11 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+*.der
+*.pem
+developer_key*
+bin/
+*.prg
+*.iq
+*.debug.xml
+.DS_Store
