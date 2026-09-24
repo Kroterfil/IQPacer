@@ -224,3 +224,6 @@ bin/
 *.iq
 *.debug.xml
 .DS_Store
+gen/
+external-mir/
+internal-mir/

@@ -1,0 +1,5 @@
+<resources>
+    <jsonData id="SegIndex" filename="index.json"/>
+    <jsonData id="Seg0" filename="seg_0.json"/>
+    <jsonData id="Seg1" filename="seg_1.json"/>
+</resources>
