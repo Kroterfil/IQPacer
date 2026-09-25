@@ -227,3 +227,6 @@ bin/
 gen/
 external-mir/
 internal-mir/
+
+# segmentos fijos personales (ubicación de casa): no subir
+segments_extra/

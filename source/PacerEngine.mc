@@ -16,6 +16,8 @@ const ST_COOL = 5;     // espera a alejarse antes de rearmar
 // Umbrales (ajustables tras pruebas reales)
 const R_ARM = 300.0;       // m: radio para armar
 const R_DISARM = 400.0;    // m: radio para desarmar / salir de cooldown
+const END_NEAR = 120.0;     // m: la línea de meta solo vale a menos de esto del final (curvas que pasan junto a la meta)
+const SWITCH_MARGIN = 10.0; // m: otra salida debe estar así de más cerca para cambiar de segmento
 const GATE_HALF = 25.0;    // m: semianchura de la línea de salida y llegada
 const MIN_SPEED = 1.5;     // m/s mínimos para aceptar el cruce
 const COS_MAX = 0.5;       // cos(60°): rumbo máximo respecto a la línea
@@ -173,6 +175,28 @@ class PacerEngine {
 
     // ---------- ARMED ----------
 
+    private function switchIfCloser(lat, lon) as Boolean {
+        var kx = KX_EQ * Math.cos(Math.toRadians(lat));
+        var best = nearDist - SWITCH_MARGIN;
+        var bestI = -1;
+        for (var i = 0; i < _idx.size(); i++) {
+            var e = _idx[i];
+            var dx = (lon - e[1].toDouble()) * kx;
+            var dy = (lat - e[0].toDouble()) * KY_M;
+            var d = Math.sqrt(dx * dx + dy * dy);
+            if (d < best) {
+                best = d;
+                bestI = i;
+            }
+        }
+        if (bestI >= 0 && load(bestI)) {
+            nearDist = best;
+            bufReset();
+            return true;
+        }
+        return false;
+    }
+
     private function stepArmed(gpsOk, lat, lon, now, odo) as Void {
         if (!gpsOk) {
             bufReset();
@@ -184,6 +208,11 @@ class PacerEngine {
         if (nearDist > R_DISARM) {
             unload();
             state = ST_IDLE;
+            return;
+        }
+        // Otra salida claramente más cercana (salidas vecinas): cambiar de segmento
+        _tick += 1;
+        if (_tick % 2 == 0 && switchIfCloser(lat, lon)) {
             return;
         }
         var s = x * _ux + y * _uy;          // a lo largo del rumbo de salida
@@ -281,7 +310,7 @@ class PacerEngine {
             var ex = x - _px[_n - 1];
             var ey = y - _py[_n - 1];
             bufPush(now, ex * _uex + ey * _uey, -ex * _uey + ey * _uex, x, y);
-            if (_endPending < 0 && dist > len * 0.8) {
+            if (_endPending < 0 && dist > ((len * 0.8 > len - END_NEAR) ? len * 0.8 : len - END_NEAR)) {
                 var tg = gateCross(_uex, _uey);
                 if (tg != null) {
                     _endGuess = tg;
