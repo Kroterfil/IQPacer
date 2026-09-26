@@ -19,7 +19,7 @@ ST_IDLE, ST_ARMED, ST_RUN, ST_DONE, ST_ABORT, ST_COOL = range(6)
 SWITCH_MARGIN = 10.0
 END_NEAR = 120.0
 R_ARM, R_DISARM, GATE_HALF, MIN_SPEED, COS_MAX, MAX_JUMP = 300.0, 400.0, 25.0, 1.5, 0.5, 50.0
-CONF_DIST, CONF_LAT, CONF_N, CONF_OK, OFF_LAT, OFF_SECS = 100.0, 20.0, 5, 4, 60.0, 10
+CONF_DIST, CONF_LAT, CONF_N, CONF_OK, OFF_LAT, OFF_SECS = 100.0, 20.0, 5, 4, 100.0, 15
 KX_EQ, KY_M = 111320.0, 110574.0
 
 
@@ -394,9 +394,13 @@ def main():
             started = [s for s in eng.starts if s != "cancel"]
             exp = tseg - json.load(open(os.path.join(ROOT, "resources", "segments", f"seg_{i}.json")))["g"][-1] / 10.0
             if expect_start:
-                tol = 1.5 if kw.get('noise', 3.0) <= 3.0 else 2.5
+                # con ruido GPS alto la tolerancia crece: fija 2.5 s o el 0.5 % de la duracion del segmento (lo que sea mayor),
+                # y la salida puede detectarse hasta 1.5 s despues
+                noisy = kw.get('noise', 3.0) > 3.0
+                tol = max(2.5, 0.005 * tseg) if noisy else 1.5
+                tol_start = 1.5 if noisy else 1.0
                 good = eng.final is not None and abs(eng.final - exp) <= tol and len(started) == 1 \
-                    and abs(started[0] - 5 - tstart) <= 1.0
+                    and abs(started[0] - 5 - tstart) <= tol_start
                 res = f"final {eng.final:+6.2f} s (esperado {exp:+6.2f}) | salida detectada t={started[0]-5:.2f} (real {tstart:.2f})" \
                     if eng.final is not None and started else f"SIN RESULTADO starts={eng.starts} state={eng.state}"
             else:

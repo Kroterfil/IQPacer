@@ -1,5 +1,5 @@
 <resources>
-    <string id="AppName">DELTA</string>
+    <string id="AppName">ETA</string>
     <string id="ModeTitle">Dato mostrado</string>
     <string id="ModeDelta">Delante / detrás (s)</string>
     <string id="ModeEta">ETA a meta</string>

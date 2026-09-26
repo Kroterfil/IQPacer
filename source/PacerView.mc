@@ -7,13 +7,16 @@ import Toybox.WatchUi;
 
 const MODE_DELTA = 0;
 const MODE_ETA = 1;
-const COLOR_AHEAD = 0x00AA00;   // verde: vas por delante
-const COLOR_BEHIND = 0xDD0000;  // rojo: vas por detrás
+const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; por encima, el dato de la actividad
+const COLOR_AHEAD = 0x007A33;   // verde oscuro: vas por delante (texto blanco)
+const COLOR_BEHIND = 0xC00000;  // rojo oscuro: vas por detrás (texto blanco)
 
 class PacerView extends WatchUi.DataField {
     private var _engine;
     private var _mode = MODE_DELTA;
     private var _shown = 0;       // segundos mostrados (con histéresis)
+    private var _avgSpeed = null; // m/s, media de la actividad
+    private var _ascent = null;   // m, desnivel positivo acumulado de la actividad
     private var _bigFonts = [
         Graphics.FONT_NUMBER_THAI_HOT,
         Graphics.FONT_NUMBER_HOT,
@@ -37,6 +40,8 @@ class PacerView extends WatchUi.DataField {
 
     function compute(info as Activity.Info) as Void {
         _engine.compute(info);
+        _avgSpeed = info.averageSpeed;
+        _ascent = info.totalAscent;
         var st = _engine.state;
         if (st == ST_RUN || st == ST_DONE) {
             // Redondeo con histéresis de 0,3 s para que el número no baile
@@ -57,6 +62,7 @@ class PacerView extends WatchUi.DataField {
         var active = (st == ST_RUN || st == ST_DONE);
         if (active) {
             bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
+            fg = Graphics.COLOR_WHITE;   // sobre verde/rojo siempre blanco
         }
         dc.setColor(fg, bg);
         dc.clear();
@@ -66,20 +72,58 @@ class PacerView extends WatchUi.DataField {
         var h = dc.getHeight();
 
         if (!active) {
+            // Lejos de cualquier salida (>500 m) o sin segmento: dato de la actividad
+            // (delta -> velocidad media; ETA -> desnivel acumulado). Cerca: distancia a la salida.
+            var far = (st == ST_COOL) || (st == ST_ABORT) || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M));
+            if (far && drawActivityDatum(dc, w, h)) {
+                return;
+            }
             drawStatus(dc, w, h, st);
             return;
         }
 
-        // Distancia restante arriba en pequeño (si cabe) y el dato en grande
-        var small = Graphics.FONT_SMALL;
-        var lh = dc.getFontHeight(small);
-        if (st == ST_RUN && h >= 2 * lh + 40) {
-            dc.drawText(w - 8, 4, small, fmtKm(_engine.remain), Graphics.TEXT_JUSTIFY_RIGHT);
-            var top = 4 + lh;
-            drawMain(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, st);
-        } else {
-            drawMain(dc, w / 2, h / 2, w - 8, h - 4, st);
+        var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : "DELTA";
+        var top = drawTitle(dc, w, h, title);
+        drawMain(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, st);
+    }
+
+    // Título arriba, con letra del tamaño de los campos nativos (la mayor que quepa y deje sitio al número).
+    // Devuelve el alto ocupado (0 si no cabe).
+    private function drawTitle(dc, w, h, title) as Number {
+        var fonts = [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        for (var i = 0; i < fonts.size(); i++) {
+            var f = fonts[i];
+            var th = dc.getFontHeight(f);
+            if (th * 3 + 12 <= h && dc.getTextWidthInPixels(title, f) <= w - 8) {
+                dc.drawText(w / 2, 4, f, title, Graphics.TEXT_JUSTIFY_CENTER);
+                return th + 4;
+            }
         }
+        return 0;
+    }
+
+    private function drawActivityDatum(dc, w, h) as Boolean {
+        var digits = "0";
+        var unit = "";
+        if (_mode == MODE_ETA) {
+            unit = "m";
+            if (_ascent != null) {
+                digits = _ascent.toNumber().format("%d");
+            }
+        } else {
+            unit = "km/h";
+            digits = "0,0";
+            if (_avgSpeed != null) {
+                var t = (_avgSpeed * 36.0).toNumber();   // décimas de km/h
+                digits = (t / 10).format("%d") + "," + (t % 10).format("%d");
+            }
+        }
+        var top = drawTitle(dc, w, h, (_mode == MODE_ETA) ? "ALT" : "V.MEDIA");
+        if (top > 0) {
+            unit = "";   // el título ya lo dice: más sitio para el número
+        }
+        drawBig(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, 0, digits, unit);
+        return true;
     }
 
     // Dato principal: delta con signo, o ETA en m:ss. Al terminar, siempre el resultado.
@@ -88,7 +132,7 @@ class PacerView extends WatchUi.DataField {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");
         } else {
             var sign = (_shown > 0) ? 1 : ((_shown < 0) ? -1 : 0);
-            drawBig(dc, cx, cy, maxW, maxH, sign, _shown.abs().format("%d"), "s");
+            drawBig(dc, cx, cy, maxW, maxH, sign, _shown.abs().format("%d"), "");
         }
     }
 

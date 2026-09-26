@@ -1,0 +1,3 @@
+project.manifest = manifest_eta.xml
+base.sourcePath = source
+base.resourcePath = resources_eta;resources/segments
