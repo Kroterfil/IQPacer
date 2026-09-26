@@ -230,3 +230,7 @@ internal-mir/
 
 # segmentos fijos personales (ubicación de casa): no subir
 segments_extra/
+
+# segmentos del usuario (rutas propias): no subir
+segments/
+resources/segments/
