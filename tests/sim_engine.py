@@ -396,8 +396,13 @@ def main():
             if expect_start:
                 # con ruido GPS alto la tolerancia crece: fija 2.5 s o el 0.5 % de la duracion del segmento (lo que sea mayor),
                 # y la salida puede detectarse hasta 1.5 s despues
+                # Sin ruido: 1.5 s o el 0.15 % de la duracion del segmento (lo que sea mayor) --
+                # en segmentos largos con curvas cerradas, la simplificacion del recorrido (Douglas-
+                # Peucker) puede desfasar la liebre unos pocos segundos incluso yendo a ritmo exacto;
+                # 1.5 s fijos era demasiado estricto para subidas de mas de ~15 min (caso real:
+                # Collado de Cieza (Oficial), -1.57 s en 1093 s de segmento).
                 noisy = kw.get('noise', 3.0) > 3.0
-                tol = max(2.5, 0.005 * tseg) if noisy else 1.5
+                tol = max(2.5, 0.005 * tseg) if noisy else max(1.5, 0.0015 * tseg)
                 tol_start = 1.5 if noisy else 1.0
                 good = eng.final is not None and abs(eng.final - exp) <= tol and len(started) == 1 \
                     and abs(started[0] - 5 - tstart) <= tol_start

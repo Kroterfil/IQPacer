@@ -2,7 +2,7 @@
 import Toybox.Lang;
 
 function segCount() as Number {
-    return 69;
+    return 63;
 }
 
 function segResId(i as Number) {
@@ -69,11 +69,5 @@ function segResId(i as Number) {
     if (i == 60) { return Rez.JsonData.Seg60; }
     if (i == 61) { return Rez.JsonData.Seg61; }
     if (i == 62) { return Rez.JsonData.Seg62; }
-    if (i == 63) { return Rez.JsonData.Seg63; }
-    if (i == 64) { return Rez.JsonData.Seg64; }
-    if (i == 65) { return Rez.JsonData.Seg65; }
-    if (i == 66) { return Rez.JsonData.Seg66; }
-    if (i == 67) { return Rez.JsonData.Seg67; }
-    if (i == 68) { return Rez.JsonData.Seg68; }
     return null;
 }
