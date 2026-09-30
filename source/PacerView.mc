@@ -8,8 +8,11 @@ import Toybox.WatchUi;
 const MODE_DELTA = 0;
 const MODE_ETA = 1;
 const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; por encima, el dato de la actividad
-const COLOR_AHEAD = 0x007A33;   // verde oscuro: vas por delante (texto blanco)
-const COLOR_BEHIND = 0xC00000;  // rojo oscuro: vas por detrás (texto blanco)
+// KSE_IQPACER_FONDO_NEGRO_NUMERO_COLOR_V1: antes eran oscuros (pensados
+// como FONDO con texto blanco encima); ahora el numero va sobre negro,
+// necesitan ser vivos para leerse bien.
+const COLOR_AHEAD = 0x00C060;   // verde vivo: vas por delante
+const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
 
 class PacerView extends WatchUi.DataField {
     private var _engine;
@@ -61,8 +64,20 @@ class PacerView extends WatchUi.DataField {
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
         if (active) {
-            bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
-            fg = Graphics.COLOR_WHITE;   // sobre verde/rojo siempre blanco
+            // KSE_IQPACER_FONDO_NEGRO_NUMERO_COLOR_V1: David -- fondo
+            // siempre negro (menos "alarma visual" constante que el
+            // rojo/verde a pantalla completa); el numero es el que
+            // cambia de color. Blanco si estas dentro de +-5s de la
+            // liebre (ni por delante ni por detras de sobra), rojo si
+            // vas detras mas de 5s, verde si vas por delante mas de 5s.
+            bg = Graphics.COLOR_BLACK;
+            if (_shown.abs() <= 5) {
+                fg = Graphics.COLOR_WHITE;
+            } else if (_shown > 0) {
+                fg = COLOR_BEHIND;
+            } else {
+                fg = COLOR_AHEAD;
+            }
         }
         dc.setColor(fg, bg);
         dc.clear();
