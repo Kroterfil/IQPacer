@@ -189,10 +189,24 @@ class PacerEngine {
                 bestI = i;
             }
         }
-        if (bestI >= 0 && load(bestI)) {
-            nearDist = best;
-            bufReset();
-            return true;
+        if (bestI >= 0) {
+            // reproyectar las ultimas muestras al segmento nuevo (antes se borraban y se perdia la salida)
+            var oLat0 = _lat0;
+            var oLon0 = _lon0;
+            var oKx = _kx;
+            var oKy = _ky;
+            if (load(bestI)) {
+                nearDist = best;
+                for (var k = 0; k < _bn; k++) {
+                    var nx = localX(oLon0 + _bx[k] / oKx);
+                    var ny = localY(oLat0 + _by[k] / oKy);
+                    _bs[k] = nx * _ux + ny * _uy;
+                    _bc[k] = -nx * _uy + ny * _ux;
+                    _bx[k] = nx;
+                    _by[k] = ny;
+                }
+                return true;
+            }
         }
         return false;
     }
@@ -213,7 +227,10 @@ class PacerEngine {
         // Otra salida claramente más cercana (salidas vecinas): cambiar de segmento
         _tick += 1;
         if (_tick % 2 == 0 && switchIfCloser(lat, lon)) {
-            return;
+            // salidas vecinas: el cruce de la linea puede ocurrir justo en este tick; se sigue con la muestra
+            // actual en las coordenadas del segmento nuevo (el bufer ya viene reproyectado)
+            x = localX(lon);
+            y = localY(lat);
         }
         var s = x * _ux + y * _uy;          // a lo largo del rumbo de salida
         var c = -x * _uy + y * _ux;         // lateral
