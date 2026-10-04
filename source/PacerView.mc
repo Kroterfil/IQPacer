@@ -8,10 +8,10 @@ import Toybox.WatchUi;
 const MODE_DELTA = 0;
 const MODE_ETA = 1;
 const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; por encima, el dato de la actividad
-// KSE_IQPACER_FONDO_NEGRO_NUMERO_COLOR_V1: antes eran oscuros (pensados
-// como FONDO con texto blanco encima); ahora el numero va sobre negro,
-// necesitan ser vivos para leerse bien.
-const COLOR_AHEAD = 0x00C060;   // verde vivo: vas por delante
+// Fondo de color solo cuando te desvias mas de NEUTRO_S segundos de la liebre; dentro, fondo y numero nativos.
+// Colores vivos (los del sistema de Apple: rojo del boton de grabar, verde).
+const NEUTRO_S = 5;
+const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
 
 class PacerView extends WatchUi.DataField {
@@ -64,19 +64,11 @@ class PacerView extends WatchUi.DataField {
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
         if (active) {
-            // KSE_IQPACER_FONDO_NEGRO_NUMERO_COLOR_V1: David -- fondo
-            // siempre negro (menos "alarma visual" constante que el
-            // rojo/verde a pantalla completa); el numero es el que
-            // cambia de color. Blanco si estas dentro de +-5s de la
-            // liebre (ni por delante ni por detras de sobra), rojo si
-            // vas detras mas de 5s, verde si vas por delante mas de 5s.
-            bg = Graphics.COLOR_BLACK;
-            if (_shown.abs() <= 5) {
+            // Dentro de +-NEUTRO_S s de la liebre: fondo y numero nativos del Garmin (como cualquier otro campo).
+            // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco.
+            if (_shown.abs() > NEUTRO_S) {
+                bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
                 fg = Graphics.COLOR_WHITE;
-            } else if (_shown > 0) {
-                fg = COLOR_BEHIND;
-            } else {
-                fg = COLOR_AHEAD;
             }
         }
         dc.setColor(fg, bg);
@@ -127,10 +119,10 @@ class PacerView extends WatchUi.DataField {
             }
         } else {
             unit = "km/h";
-            digits = "0,0";
+            digits = "0.0";
             if (_avgSpeed != null) {
                 var t = (_avgSpeed * 36.0).toNumber();   // décimas de km/h
-                digits = (t / 10).format("%d") + "," + (t % 10).format("%d");
+                digits = (t / 10).format("%d") + "." + (t % 10).format("%d");
             }
         }
         var top = drawTitle(dc, w, h, (_mode == MODE_ETA) ? "ALT" : "V.MEDIA");
@@ -202,7 +194,7 @@ class PacerView extends WatchUi.DataField {
                 var shortTxt = d.toNumber().format("%d");
                 if (d >= 1000) {
                     var t = (d / 100).toNumber();
-                    shortTxt = (t / 10).format("%d") + "," + (t % 10).format("%d");
+                    shortTxt = (t / 10).format("%d") + "." + (t % 10).format("%d");
                 }
                 opts = [fmtKm(d), shortTxt];
             }
@@ -240,7 +232,7 @@ class PacerView extends WatchUi.DataField {
             return m.toNumber().format("%d") + " m";
         }
         var tenths = (m / 100).toNumber();
-        return (tenths / 10).format("%d") + "," + (tenths % 10).format("%d") + " km";
+        return (tenths / 10).format("%d") + "." + (tenths % 10).format("%d") + " km";
     }
 
 }
