@@ -1,0 +1,3 @@
+project.manifest = manifest_demo.xml
+base.sourcePath = source
+base.resourcePath = resources_demo;resources/segments

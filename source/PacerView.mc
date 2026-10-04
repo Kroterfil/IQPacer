@@ -3,6 +3,7 @@ import Toybox.Application;
 import Toybox.Graphics;
 import Toybox.Lang;
 import Toybox.Math;
+import Toybox.System;
 import Toybox.WatchUi;
 
 const MODE_DELTA = 0;
@@ -18,6 +19,7 @@ class PacerView extends WatchUi.DataField {
     private var _engine;
     private var _mode = MODE_DELTA;
     private var _shown = 0;       // segundos mostrados (con histéresis)
+    private var _demo = false;    // modo prueba: simula el delta (de +95 a -95 s en 80 s) para ver colores y formato sin segmento
     private var _avgSpeed = null; // m/s, media de la actividad
     private var _ascent = null;   // m, desnivel positivo acumulado de la actividad
     private var _bigFonts = [
@@ -39,9 +41,21 @@ class PacerView extends WatchUi.DataField {
     function loadSettings() as Void {
         var m = Application.Properties.getValue("mode");
         _mode = (m != null && m == MODE_ETA) ? MODE_ETA : MODE_DELTA;
+        var d = Application.Properties.getValue("demo");
+        _demo = (d != null && d == true);
+    }
+
+    // Delta simulado del modo prueba: seno de +-95 s con periodo de 80 s (pasa por la zona neutra, el rojo, el verde y el 1:xx).
+    private function demoShown() as Number {
+        var t = System.getTimer() / 1000.0;
+        return Math.round(95.0 * Math.sin(2.0 * Math.PI * t / 80.0)).toNumber();
     }
 
     function compute(info as Activity.Info) as Void {
+        if (_demo) {
+            _shown = demoShown();
+            return;
+        }
         _engine.compute(info);
         _avgSpeed = info.averageSpeed;
         _ascent = info.totalAscent;
@@ -59,6 +73,10 @@ class PacerView extends WatchUi.DataField {
 
     function onUpdate(dc as Graphics.Dc) as Void {
         var st = _engine.state;
+        if (_demo) {
+            _shown = demoShown();
+            st = ST_DONE;   // se pinta como un segmento en curso, siempre en modo delta
+        }
         var nativeBg = getBackgroundColor();
         var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var bg = nativeBg;
