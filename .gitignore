@@ -234,3 +234,7 @@ segments_extra/
 # segmentos del usuario (rutas propias): no subir
 segments/
 resources/segments/
+
+# Segmentos que no pasaron la simulacion y el informe de la ultima simulacion
+segments_failed/
+tests/sim_report.json

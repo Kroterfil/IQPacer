@@ -33,6 +33,7 @@ class Engine:
         self.tick = 0
         self.buf = []
         self.starts = []
+        self.runs = []      # una entrada por pasada: segmento armado, t de salida y resultado
         self.final = None
         self.delta = 0.0
         self.eta = 0.0
@@ -190,6 +191,7 @@ class Engine:
         self.end_pending = -1
         self.state = ST_RUN
         self.starts.append(t0 / 1000.0)
+        self.runs.append({"cur": self.cur, "t0": t0 / 1000.0, "final": None})
 
     def run(self, gps_ok, lat, lon, now, odo, timer):
         d_odo = 0.0
@@ -257,6 +259,8 @@ class Engine:
 
     def finish(self, t_final, timer):
         self.final = t_final - self.total
+        if self.runs:
+            self.runs[-1]["final"] = self.final
         self.state, self.hold = ST_DONE, timer + 30000
 
     def project(self, x, y):
@@ -328,9 +332,19 @@ def ride(src_json, pace=1.0, stop_at=None, stop_s=0, reverse=False, noise=3.0, s
     xy = [((p["lon"] - pts[0]["lon"]) * kx, (p["lat"] - lat0) * KY_M) for p in pts]
     ts = [c["elapsed_seconds"] * pace for c in rc]
     # aproximación de 500 m antes de la salida y 200 m tras la llegada, a 8 m/s
-    ax, ay = xy[1][0] - xy[0][0], xy[1][1] - xy[0][1]
+    # Rumbo de aproximacion y de continuacion: el del tramo de ~30 m junto a cada extremo (el mismo criterio del motor y
+    # de export_ciq), no el de los dos primeros/ultimos puntos, que en un GPS con un giro justo en la meta apuntan hacia atras.
+    def _dir_cerca(pts, desde_final):
+        orden = list(reversed(pts)) if desde_final else list(pts)
+        x0, y0 = orden[0]
+        for q in orden[1:]:
+            if math.hypot(q[0] - x0, q[1] - y0) >= 30.0:
+                return q[0] - x0, q[1] - y0
+        return orden[-1][0] - x0, orden[-1][1] - y0
+    ax, ay = _dir_cerca(xy, False)
     n = math.hypot(ax, ay); ax, ay = ax / n, ay / n
-    bx, by = xy[-1][0] - xy[-2][0], xy[-1][1] - xy[-2][1]
+    bx, by = _dir_cerca(xy, True)
+    bx, by = -bx, -by          # hacia delante a partir de la meta
     n = math.hypot(bx, by); bx, by = bx / n, by / n
     track = []  # (t, x, y)
     for k in range(63):
@@ -345,7 +359,7 @@ def ride(src_json, pace=1.0, stop_at=None, stop_s=0, reverse=False, noise=3.0, s
     # velocidad final real (últimos ~50 m) para continuar tras la meta sin saltos
     j0 = max(i for i in range(len(rc)) if rc[-1]["distance_m"] - rc[i]["distance_m"] >= 50) if len(rc) > 2 else 0
     vend = (rc[-1]["distance_m"] - rc[j0]["distance_m"]) / max(ts[-1] - ts[j0], 0.1)
-    for k in range(1, 26):
+    for k in range(1, max(26, int(150.0 / max(vend, 0.5)) + 2)):
         track.append((tend + k, xy[-1][0] + bx * vend * k, xy[-1][1] + by * vend * k))
     if reverse:
         T = track[-1][0]
@@ -388,6 +402,7 @@ def main():
     srcs = sorted(glob.glob(os.path.join(ROOT, "segments", "*.json")))
     cases = []
     ok = True
+    fallos = {}     # fichero del segmento -> {"id", "name", "casos": [...]}: para dejar fuera solo los que fallan
     for i, src in enumerate(srcs):
         nm = json.load(open(src))["name"]
         for label, kw, expect_start in [
@@ -401,7 +416,11 @@ def main():
         ]:
             eng, _ = run_case(label, i, src, **kw)
             samples, (tstart, tseg) = ride(src, **kw)
-            started = [s for s in eng.starts if s != "cancel"]
+            # Se evalua la PRIMERA pasada del recorrido: una subida puede llevar dentro otras (segmentos anidados o que
+            # comparten salida) y el Edge solo sigue una a la vez; las que arrancan despues no cuentan.
+            runs = [r for r in eng.runs]
+            first = runs[0] if runs else None
+            started = [first["t0"] + 0.0] if first else []
             exp = tseg - json.load(open(os.path.join(ROOT, "resources", "segments", f"seg_{i}.json")))["g"][-1] / 10.0
             if expect_start:
                 # con ruido GPS alto la tolerancia crece: fija 2.5 s o el 0.5 % de la duracion del segmento (lo que sea mayor),
@@ -416,24 +435,30 @@ def main():
                 # tolerancias solo saltan con desvios que si se notarian.
                 tol = max(4.0, 0.008 * tseg) if noisy else max(3.0, 0.004 * tseg)
                 tol_start = 3.0
-                good = eng.final is not None and abs(eng.final - exp) <= tol and len(started) == 1 \
-                    and abs(started[0] - 5 - tstart) <= tol_start
-                if not good and started and eng.cur != i:
+                good = (first is not None and first["cur"] == i and first["final"] is not None
+                        and abs(first["final"] - exp) <= tol and abs(first["t0"] - 5 - tstart) <= tol_start)
+                if not good and first is not None and first["cur"] != i:
                     # subidas que comparten salida, meta o parte del trazado: arrancar el segmento vecino
                     # (salida a menos de 60 m) es legitimo, no un fallo
                     _sx = json.load(open(src))["points"][0]
-                    _e = eng.idx[eng.cur]
+                    _e = eng.idx[first["cur"]]
                     _kx = KX_EQ * math.cos(math.radians(_sx["lat"]))
                     if math.hypot((_sx["lon"] - _e[1]) * _kx, (_sx["lat"] - _e[0]) * KY_M) < 60.0:
                         good = True
-                res = f"final {eng.final:+6.2f} s (esperado {exp:+6.2f}) | salida detectada t={started[0]-5:.2f} (real {tstart:.2f})" \
-                    if eng.final is not None and started else f"SIN RESULTADO starts={eng.starts} state={eng.state}"
+                res = (f"final {first['final']:+6.2f} s (esperado {exp:+6.2f}) | salida detectada t={first['t0']-5:.2f} (real {tstart:.2f})"
+                       if first is not None and first["final"] is not None
+                       else f"SIN RESULTADO starts={eng.starts} state={eng.state}")
             else:
                 # un arranque de OTRO segmento vecino (salida legítima) no cuenta como fallo
                 good = eng.final is None or eng.cur != i
                 res = f"sin arranque: {'OK' if good else 'FALLO'} (starts={eng.starts}, final={eng.final})"
             ok &= good
+            if not good:
+                _d = fallos.setdefault(os.path.basename(src), {"id": str(json.load(open(src)).get("id") or ""), "name": nm, "casos": []})
+                _d["casos"].append(f"{label}: {res}")
             print(f"{'OK ' if good else 'XX '} {nm[:26]:26s} | {label:22s} | {res}")
+    with open(os.path.join(HERE, "sim_report.json"), "w", encoding="utf-8") as f:
+        json.dump(fallos, f, ensure_ascii=False, indent=2)
     print("\nTODO OK" if ok else "\nHAY FALLOS")
     sys.exit(0 if ok else 1)
 
