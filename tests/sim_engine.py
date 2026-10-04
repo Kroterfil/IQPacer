@@ -337,8 +337,10 @@ def ride(src_json, pace=1.0, stop_at=None, stop_s=0, reverse=False, noise=3.0, s
     def _dir_cerca(pts, desde_final):
         orden = list(reversed(pts)) if desde_final else list(pts)
         x0, y0 = orden[0]
+        # 30 m a la salida; 10 m a la meta (un giro cerrado en los ultimos metros hacia que la cola simulada fuera hacia atras)
+        dmin = 10.0 if desde_final else 30.0
         for q in orden[1:]:
-            if math.hypot(q[0] - x0, q[1] - y0) >= 30.0:
+            if math.hypot(q[0] - x0, q[1] - y0) >= dmin:
                 return q[0] - x0, q[1] - y0
         return orden[-1][0] - x0, orden[-1][1] - y0
     ax, ay = _dir_cerca(xy, False)
