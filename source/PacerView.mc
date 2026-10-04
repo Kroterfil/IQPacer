@@ -156,7 +156,9 @@ class PacerView extends WatchUi.DataField {
         if (_mode == MODE_ETA && st == ST_RUN) {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");
         } else {
-            var sign = (_shown > 0) ? 1 : ((_shown < 0) ? -1 : 0);
+            // Con fondo de color (fuera de +-NEUTRO_S) el color ya dice si vas por delante o por detras: sin signo.
+            // Dentro de la zona neutra (fondo nativo) el signo es lo unico que lo indica.
+            var sign = (_shown.abs() > NEUTRO_S) ? 0 : ((_shown > 0) ? 1 : ((_shown < 0) ? -1 : 0));
             // A partir de 1 minuto, m:ss (1:01), igual que la ETA; por debajo, los segundos a secas.
             var a = _shown.abs();
             drawBig(dc, cx, cy, maxW, maxH, sign, (a >= 60) ? fmtTime(a) : a.format("%d"), "");
