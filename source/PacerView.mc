@@ -139,7 +139,9 @@ class PacerView extends WatchUi.DataField {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");
         } else {
             var sign = (_shown > 0) ? 1 : ((_shown < 0) ? -1 : 0);
-            drawBig(dc, cx, cy, maxW, maxH, sign, _shown.abs().format("%d"), "");
+            // A partir de 1 minuto, m:ss (1:01), igual que la ETA; por debajo, los segundos a secas.
+            var a = _shown.abs();
+            drawBig(dc, cx, cy, maxW, maxH, sign, (a >= 60) ? fmtTime(a) : a.format("%d"), "");
         }
     }
 
