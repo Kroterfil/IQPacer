@@ -163,19 +163,56 @@ class PacerView extends WatchUi.DataField {
         }
     }
 
+    // Las fuentes de numeros del Edge dibujan el separador decimal como una coma grande: el punto se dibuja a mano
+    // (un cuadrado sobre la linea base, como el signo) y los digitos a cada lado con la fuente.
+    private function dotSize(dc, f) as Number {
+        var d = dc.getFontHeight(f) / 9;
+        return (d < 3) ? 3 : d;
+    }
+
+    private function numWidth(dc, digits, f) as Number {
+        var p = digits.find(".");
+        if (p == null) {
+            return dc.getTextWidthInPixels(digits, f);
+        }
+        var a = digits.substring(0, p);
+        var b = digits.substring(p + 1, digits.length());
+        var d = dotSize(dc, f);
+        return dc.getTextWidthInPixels(a, f) + d + 2 * (d / 2 + 1) + dc.getTextWidthInPixels(b, f);
+    }
+
+    private function drawNum(dc, x, cy, f, digits) as Void {
+        var flags = Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER;
+        var p = digits.find(".");
+        if (p == null) {
+            dc.drawText(x, cy, f, digits, flags);
+            return;
+        }
+        var a = digits.substring(0, p);
+        var b = digits.substring(p + 1, digits.length());
+        var d = dotSize(dc, f);
+        var g = d / 2 + 1;
+        dc.drawText(x, cy, f, a, flags);
+        x += dc.getTextWidthInPixels(a, f) + g;
+        var base = cy + dc.getFontHeight(f) / 2 - dc.getFontDescent(f);
+        dc.fillRectangle(x, base - d, d, d);
+        x += d + g;
+        dc.drawText(x, cy, f, b, flags);
+    }
+
     // Número grande: signo dibujado (no depende de la fuente) + dígitos + unidad
     private function drawBig(dc, cx, cy, maxW, maxH, sign, digits, unit) as Void {
         var unitFont = Graphics.FONT_MEDIUM;
         var uw = (unit.length() > 0) ? dc.getTextWidthInPixels(unit, unitFont) : 0;
         var font = _bigFonts[_bigFonts.size() - 1];
         var fh = dc.getFontHeight(font);
-        var tw = dc.getTextWidthInPixels(digits, font);
+        var tw = numWidth(dc, digits, font);
         var sw = 0;
         var gap = 0;
         for (var i = 0; i < _bigFonts.size(); i++) {
             var f = _bigFonts[i];
             var h = dc.getFontHeight(f);
-            var t = dc.getTextWidthInPixels(digits, f);
+            var t = numWidth(dc, digits, f);
             var s = (sign != 0) ? (h * 0.3).toNumber() : 0;
             var gp = (h / 12) + 2;
             var tot = s + (sign != 0 ? gp : 0) + t + (uw > 0 ? gp + uw : 0);
@@ -198,7 +235,7 @@ class PacerView extends WatchUi.DataField {
             }
             x += sw + gap;
         }
-        dc.drawText(x, cy, font, digits, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
+        drawNum(dc, x, cy, font, digits);
         x += tw;
         if (uw > 0) {
             dc.drawText(x + gap, cy + fh / 6, unitFont, unit, Graphics.TEXT_JUSTIFY_LEFT | Graphics.TEXT_JUSTIFY_VCENTER);
