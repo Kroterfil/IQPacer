@@ -28,7 +28,7 @@ class PacerView extends WatchUi.DataField {
     private var _wSum = 0.0;      // W*s acumulados desde la salida del segmento
     private var _wTime = 0.0;     // s acumulados con dato de potencia
     private var _wLastT = 0.0;    // tYou de la muestra anterior
-    private var _wAvg = 0;        // W medios desde la salida (se congela al terminar)
+    private var _wAvg = 0;        // W medios desde la salida (solo se muestra durante el segmento)
     private var _bigFonts = [
         Graphics.FONT_NUMBER_THAI_HOT,
         Graphics.FONT_NUMBER_HOT,
@@ -74,7 +74,7 @@ class PacerView extends WatchUi.DataField {
         _distance = info.elapsedDistance;
         var st = _engine.state;
         // Vatios medios del segmento: se reinician al empezar (RUN tras otro estado), se promedian por tiempo
-        // mientras dura y se congelan al terminar (DONE), igual que el resultado de los otros modos.
+        // mientras dura el segmento; al terminar el campo vuelve a la distancia de la ruta.
         if (st == ST_RUN) {
             if (_segState != ST_RUN) {
                 _wSum = 0.0;
@@ -113,6 +113,9 @@ class PacerView extends WatchUi.DataField {
         var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
+        if (_mode == MODE_WATTS) {
+            active = (st == ST_RUN);   // al terminar el segmento vuelve la distancia de la ruta, sin congelar el resultado
+        }
         if (active) {
             // Dentro de +-NEUTRO_S s de la liebre: fondo y numero nativos del Garmin (como cualquier otro campo).
             // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco.
@@ -131,7 +134,7 @@ class PacerView extends WatchUi.DataField {
         if (!active) {
             // Lejos de cualquier salida (>500 m) o sin segmento: dato de la actividad
             // (delta -> velocidad media; ETA -> desnivel acumulado). Cerca: distancia a la salida.
-            var far = (st == ST_COOL) || (st == ST_ABORT) || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M));
+            var far = (st == ST_COOL) || (st == ST_ABORT) || (_mode == MODE_WATTS && st == ST_DONE) || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M));
             if (far && drawActivityDatum(dc, w, h)) {
                 return;
             }
