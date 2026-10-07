@@ -147,14 +147,14 @@ class PacerView extends WatchUi.DataField {
             title = "WATIOS";
         }
         var top = drawTitle(dc, w, h, title);
-        drawMain(dc, w / 2, top + ((h - top) * 9) / 16, w - 8, ((h - top) * 4) / 5, st);
+        drawMain(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, st);
     }
 
-    // Titulo como en los campos nativos: letra mas pequena, algo separada del borde superior (un doceavo del alto) y
+    // Titulo como en los campos nativos: letra mas pequena, algo separada del borde superior (un octavo del alto) y
     // el numero debajo. Devuelve el alto ocupado (0 si no cabe).
     private function drawTitle(dc, w, h, title) as Number {
         var fonts = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
-        var margin = h / 12;
+        var margin = h / 8;
         if (margin < 4) {
             margin = 4;
         }
@@ -190,7 +190,7 @@ class PacerView extends WatchUi.DataField {
         }
         var top = drawTitle(dc, w, h, (_mode == MODE_WATTS) ? "DIST" : ((_mode == MODE_ETA) ? "ALT" : "V.MEDIA"));
         // Numero algo mas pequeno que antes y centrado en el hueco bajo el titulo (como el campo nativo); sin unidades.
-        drawBig(dc, w / 2, top + ((h - top) * 9) / 16, w - 8, ((h - top) * 4) / 5, 0, digits, "");
+        drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, 0, digits, "");
         return true;
     }
 
