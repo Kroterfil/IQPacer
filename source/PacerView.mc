@@ -147,19 +147,23 @@ class PacerView extends WatchUi.DataField {
             title = "WATIOS";
         }
         var top = drawTitle(dc, w, h, title);
-        drawMain(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, st);
+        drawMain(dc, w / 2, top + ((h - top) * 9) / 16, w - 8, ((h - top) * 4) / 5, st);
     }
 
-    // Título arriba, con letra del tamaño de los campos nativos (la mayor que quepa y deje sitio al número).
-    // Devuelve el alto ocupado (0 si no cabe).
+    // Titulo como en los campos nativos: letra mas pequena, algo separada del borde superior (un doceavo del alto) y
+    // el numero debajo. Devuelve el alto ocupado (0 si no cabe).
     private function drawTitle(dc, w, h, title) as Number {
-        var fonts = [Graphics.FONT_MEDIUM, Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        var fonts = [Graphics.FONT_SMALL, Graphics.FONT_TINY, Graphics.FONT_XTINY];
+        var margin = h / 12;
+        if (margin < 4) {
+            margin = 4;
+        }
         for (var i = 0; i < fonts.size(); i++) {
             var f = fonts[i];
             var th = dc.getFontHeight(f);
             if (th * 3 + 12 <= h && dc.getTextWidthInPixels(title, f) <= w - 8) {
-                dc.drawText(w / 2, 4, f, title, Graphics.TEXT_JUSTIFY_CENTER);
-                return th + 4;
+                dc.drawText(w / 2, margin, f, title, Graphics.TEXT_JUSTIFY_CENTER);
+                return th + margin;
             }
         }
         return 0;
@@ -167,21 +171,17 @@ class PacerView extends WatchUi.DataField {
 
     private function drawActivityDatum(dc, w, h) as Boolean {
         var digits = "0";
-        var unit = "";
         if (_mode == MODE_WATTS) {
-            unit = "km";
             digits = "0.0";
             if (_distance != null) {
                 var t = (_distance / 100.0).toNumber();   // décimas de km
                 digits = (t / 10).format("%d") + "." + (t % 10).format("%d");
             }
         } else if (_mode == MODE_ETA) {
-            unit = "m";
             if (_ascent != null) {
                 digits = _ascent.toNumber().format("%d");
             }
         } else {
-            unit = "km/h";
             digits = "0.0";
             if (_avgSpeed != null) {
                 var t = (_avgSpeed * 36.0).toNumber();   // décimas de km/h
@@ -189,10 +189,8 @@ class PacerView extends WatchUi.DataField {
             }
         }
         var top = drawTitle(dc, w, h, (_mode == MODE_WATTS) ? "DIST" : ((_mode == MODE_ETA) ? "ALT" : "V.MEDIA"));
-        if (top > 0) {
-            unit = "";   // el título ya lo dice: más sitio para el número
-        }
-        drawBig(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, 0, digits, unit);
+        // Numero algo mas pequeno que antes y centrado en el hueco bajo el titulo (como el campo nativo); sin unidades.
+        drawBig(dc, w / 2, top + ((h - top) * 9) / 16, w - 8, ((h - top) * 4) / 5, 0, digits, "");
         return true;
     }
 
