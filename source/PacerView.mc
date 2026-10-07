@@ -144,7 +144,7 @@ class PacerView extends WatchUi.DataField {
 
         var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : "DELTA";
         if (_mode == MODE_WATTS) {
-            title = "W.SEG";
+            title = "WATIOS";
         }
         var top = drawTitle(dc, w, h, title);
         drawMain(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, st);
