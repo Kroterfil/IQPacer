@@ -2,7 +2,7 @@
 import Toybox.Lang;
 
 function segCount() as Number {
-    return 59;
+    return 82;
 }
 
 function segResId(i as Number) {
@@ -65,5 +65,28 @@ function segResId(i as Number) {
     if (i == 56) { return Rez.JsonData.Seg56; }
     if (i == 57) { return Rez.JsonData.Seg57; }
     if (i == 58) { return Rez.JsonData.Seg58; }
+    if (i == 59) { return Rez.JsonData.Seg59; }
+    if (i == 60) { return Rez.JsonData.Seg60; }
+    if (i == 61) { return Rez.JsonData.Seg61; }
+    if (i == 62) { return Rez.JsonData.Seg62; }
+    if (i == 63) { return Rez.JsonData.Seg63; }
+    if (i == 64) { return Rez.JsonData.Seg64; }
+    if (i == 65) { return Rez.JsonData.Seg65; }
+    if (i == 66) { return Rez.JsonData.Seg66; }
+    if (i == 67) { return Rez.JsonData.Seg67; }
+    if (i == 68) { return Rez.JsonData.Seg68; }
+    if (i == 69) { return Rez.JsonData.Seg69; }
+    if (i == 70) { return Rez.JsonData.Seg70; }
+    if (i == 71) { return Rez.JsonData.Seg71; }
+    if (i == 72) { return Rez.JsonData.Seg72; }
+    if (i == 73) { return Rez.JsonData.Seg73; }
+    if (i == 74) { return Rez.JsonData.Seg74; }
+    if (i == 75) { return Rez.JsonData.Seg75; }
+    if (i == 76) { return Rez.JsonData.Seg76; }
+    if (i == 77) { return Rez.JsonData.Seg77; }
+    if (i == 78) { return Rez.JsonData.Seg78; }
+    if (i == 79) { return Rez.JsonData.Seg79; }
+    if (i == 80) { return Rez.JsonData.Seg80; }
+    if (i == 81) { return Rez.JsonData.Seg81; }
     return null;
 }

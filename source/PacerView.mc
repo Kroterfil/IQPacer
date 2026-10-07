@@ -23,7 +23,7 @@ class PacerView extends WatchUi.DataField {
     private var _demo = false;    // modo prueba: simula el delta (de +95 a -95 s en 80 s) para ver colores y formato sin segmento
     private var _avgSpeed = null; // m/s, media de la actividad
     private var _ascent = null;   // m, desnivel positivo acumulado de la actividad
-    private var _avgPower = null; // W, media de la actividad
+    private var _distance = null; // m, distancia recorrida de la actividad
     private var _segState = ST_IDLE;  // estado del motor en la muestra anterior (para detectar el inicio del segmento)
     private var _wSum = 0.0;      // W*s acumulados desde la salida del segmento
     private var _wTime = 0.0;     // s acumulados con dato de potencia
@@ -71,7 +71,7 @@ class PacerView extends WatchUi.DataField {
         _engine.compute(info);
         _avgSpeed = info.averageSpeed;
         _ascent = info.totalAscent;
-        _avgPower = info.averagePower;
+        _distance = info.elapsedDistance;
         var st = _engine.state;
         // Vatios medios del segmento: se reinician al empezar (RUN tras otro estado), se promedian por tiempo
         // mientras dura y se congelan al terminar (DONE), igual que el resultado de los otros modos.
@@ -166,9 +166,11 @@ class PacerView extends WatchUi.DataField {
         var digits = "0";
         var unit = "";
         if (_mode == MODE_WATTS) {
-            unit = "W";
-            if (_avgPower != null) {
-                digits = _avgPower.toNumber().format("%d");
+            unit = "km";
+            digits = "0.0";
+            if (_distance != null) {
+                var t = (_distance / 100.0).toNumber();   // décimas de km
+                digits = (t / 10).format("%d") + "." + (t % 10).format("%d");
             }
         } else if (_mode == MODE_ETA) {
             unit = "m";
@@ -183,7 +185,7 @@ class PacerView extends WatchUi.DataField {
                 digits = (t / 10).format("%d") + "." + (t % 10).format("%d");
             }
         }
-        var top = drawTitle(dc, w, h, (_mode == MODE_WATTS) ? "W.MEDIA" : ((_mode == MODE_ETA) ? "ALT" : "V.MEDIA"));
+        var top = drawTitle(dc, w, h, (_mode == MODE_WATTS) ? "DIST" : ((_mode == MODE_ETA) ? "ALT" : "V.MEDIA"));
         if (top > 0) {
             unit = "";   // el título ya lo dice: más sitio para el número
         }
