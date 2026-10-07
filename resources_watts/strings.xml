@@ -1,0 +1,6 @@
+<resources>
+    <string id="AppName">WATIOS</string>
+    <string id="ModeTitle">Dato mostrado</string>
+    <string id="ModeDelta">Delante / detrás (s)</string>
+    <string id="ModeEta">ETA a meta</string>
+</resources>

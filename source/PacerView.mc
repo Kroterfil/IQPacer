@@ -8,6 +8,7 @@ import Toybox.WatchUi;
 
 const MODE_DELTA = 0;
 const MODE_ETA = 1;
+const MODE_WATTS = 2;
 const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; por encima, el dato de la actividad
 // Fondo de color solo cuando te desvias mas de NEUTRO_S segundos de la liebre; dentro, fondo y numero nativos.
 // Colores vivos (los del sistema de Apple: rojo del boton de grabar, verde).
@@ -22,6 +23,12 @@ class PacerView extends WatchUi.DataField {
     private var _demo = false;    // modo prueba: simula el delta (de +95 a -95 s en 80 s) para ver colores y formato sin segmento
     private var _avgSpeed = null; // m/s, media de la actividad
     private var _ascent = null;   // m, desnivel positivo acumulado de la actividad
+    private var _avgPower = null; // W, media de la actividad
+    private var _segState = ST_IDLE;  // estado del motor en la muestra anterior (para detectar el inicio del segmento)
+    private var _wSum = 0.0;      // W*s acumulados desde la salida del segmento
+    private var _wTime = 0.0;     // s acumulados con dato de potencia
+    private var _wLastT = 0.0;    // tYou de la muestra anterior
+    private var _wAvg = 0;        // W medios desde la salida (se congela al terminar)
     private var _bigFonts = [
         Graphics.FONT_NUMBER_THAI_HOT,
         Graphics.FONT_NUMBER_HOT,
@@ -40,7 +47,12 @@ class PacerView extends WatchUi.DataField {
 
     function loadSettings() as Void {
         var m = Application.Properties.getValue("mode");
-        _mode = (m != null && m == MODE_ETA) ? MODE_ETA : MODE_DELTA;
+        _mode = MODE_DELTA;
+        if (m != null && m == MODE_ETA) {
+            _mode = MODE_ETA;
+        } else if (m != null && m == MODE_WATTS) {
+            _mode = MODE_WATTS;
+        }
         var d = Application.Properties.getValue("demo");
         _demo = (d != null && d == true);
     }
@@ -59,7 +71,27 @@ class PacerView extends WatchUi.DataField {
         _engine.compute(info);
         _avgSpeed = info.averageSpeed;
         _ascent = info.totalAscent;
+        _avgPower = info.averagePower;
         var st = _engine.state;
+        // Vatios medios del segmento: se reinician al empezar (RUN tras otro estado), se promedian por tiempo
+        // mientras dura y se congelan al terminar (DONE), igual que el resultado de los otros modos.
+        if (st == ST_RUN) {
+            if (_segState != ST_RUN) {
+                _wSum = 0.0;
+                _wTime = 0.0;
+                _wLastT = 0.0;
+                _wAvg = 0;
+            }
+            var dt = _engine.tYou - _wLastT;
+            _wLastT = _engine.tYou;
+            var pw = info.currentPower;
+            if (pw != null && dt > 0 && dt < 10) {
+                _wSum += pw * dt;
+                _wTime += dt;
+                _wAvg = Math.round(_wSum / _wTime).toNumber();
+            }
+        }
+        _segState = st;
         if (st == ST_RUN || st == ST_DONE) {
             // Redondeo con histéresis de 0,3 s para que el número no baile
             var d = _engine.delta;
@@ -84,7 +116,7 @@ class PacerView extends WatchUi.DataField {
         if (active) {
             // Dentro de +-NEUTRO_S s de la liebre: fondo y numero nativos del Garmin (como cualquier otro campo).
             // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco.
-            if (_shown.abs() > NEUTRO_S) {
+            if (_mode != MODE_WATTS && _shown.abs() > NEUTRO_S) {
                 bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
                 fg = Graphics.COLOR_WHITE;
             }
@@ -108,6 +140,9 @@ class PacerView extends WatchUi.DataField {
         }
 
         var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : "DELTA";
+        if (_mode == MODE_WATTS) {
+            title = "W.SEG";
+        }
         var top = drawTitle(dc, w, h, title);
         drawMain(dc, w / 2, top + (h - top) / 2, w - 8, h - top - 4, st);
     }
@@ -130,7 +165,12 @@ class PacerView extends WatchUi.DataField {
     private function drawActivityDatum(dc, w, h) as Boolean {
         var digits = "0";
         var unit = "";
-        if (_mode == MODE_ETA) {
+        if (_mode == MODE_WATTS) {
+            unit = "W";
+            if (_avgPower != null) {
+                digits = _avgPower.toNumber().format("%d");
+            }
+        } else if (_mode == MODE_ETA) {
             unit = "m";
             if (_ascent != null) {
                 digits = _ascent.toNumber().format("%d");
@@ -143,7 +183,7 @@ class PacerView extends WatchUi.DataField {
                 digits = (t / 10).format("%d") + "." + (t % 10).format("%d");
             }
         }
-        var top = drawTitle(dc, w, h, (_mode == MODE_ETA) ? "ALT" : "V.MEDIA");
+        var top = drawTitle(dc, w, h, (_mode == MODE_WATTS) ? "W.MEDIA" : ((_mode == MODE_ETA) ? "ALT" : "V.MEDIA"));
         if (top > 0) {
             unit = "";   // el título ya lo dice: más sitio para el número
         }
@@ -153,7 +193,9 @@ class PacerView extends WatchUi.DataField {
 
     // Dato principal: delta con signo, o ETA en m:ss. Al terminar, siempre el resultado.
     private function drawMain(dc, cx, cy, maxW, maxH, st) as Void {
-        if (_mode == MODE_ETA && st == ST_RUN) {
+        if (_mode == MODE_WATTS) {
+            drawBig(dc, cx, cy, maxW, maxH, 0, _wAvg.format("%d"), "");
+        } else if (_mode == MODE_ETA && st == ST_RUN) {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");
         } else {
             // Con fondo de color (fuera de +-NEUTRO_S) el color ya dice si vas por delante o por detras: sin signo.
