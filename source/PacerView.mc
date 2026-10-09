@@ -129,7 +129,7 @@ class PacerView extends WatchUi.DataField {
             title = "WATIOS";
             digits = "285";
             bg = COLOR_AHEAD;       // delta final dentro de +-5 s: verde
-            fg = Graphics.COLOR_WHITE;
+            fg = Graphics.COLOR_BLACK;
         } else if (phase == 3) {
             title = "DELTA";
             digits = "12";
@@ -139,7 +139,7 @@ class PacerView extends WatchUi.DataField {
             title = "DELTA";
             digits = "12";
             bg = COLOR_AHEAD;
-            fg = Graphics.COLOR_WHITE;
+            fg = Graphics.COLOR_BLACK;
         }
         // Parpadea cada segundo, como el resultado real: fondo de color / fondo nativo con el numero de color.
         var el = ((System.getTimer() / 1000) % (DEMO_VIAJES_S + 4 * DEMO_RESULTADO_S) - DEMO_VIAJES_S) % DEMO_RESULTADO_S;
@@ -177,7 +177,7 @@ class PacerView extends WatchUi.DataField {
             var c = (_engine.finalDelta > NEUTRO_S) ? COLOR_BEHIND : COLOR_AHEAD;
             if ((((System.getTimer() - _engine.doneAt) / 1000) % 2) == 0) {
                 bg = c;
-                fg = Graphics.COLOR_WHITE;
+                fg = (c == COLOR_AHEAD) ? Graphics.COLOR_BLACK : Graphics.COLOR_WHITE;   // negro sobre verde (mas legible)
             } else {
                 fg = c;
             }
@@ -185,7 +185,7 @@ class PacerView extends WatchUi.DataField {
             // Dentro de +-NEUTRO_S s de la liebre: fondo y numero nativos del Garmin (como cualquier otro campo).
             // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco.
             bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
-            fg = Graphics.COLOR_WHITE;
+            fg = (_shown > 0) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;   // negro sobre verde: mas legible
         }
         dc.setColor(fg, bg);
         dc.clear();
