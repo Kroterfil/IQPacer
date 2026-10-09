@@ -261,7 +261,7 @@ class Engine:
         self.final = t_final - self.total
         if self.runs:
             self.runs[-1]["final"] = self.final
-        self.state, self.hold = ST_DONE, timer + 30000
+        self.state, self.hold = ST_DONE, timer + 10000
 
     def project(self, x, y):
         lo, hi = max(self.k - 2, 0), min(self.k + 8, self.n - 2)

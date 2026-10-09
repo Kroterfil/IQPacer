@@ -13,6 +13,10 @@ const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; p
 // Fondo de color solo cuando te desvias mas de NEUTRO_S segundos de la liebre; dentro, fondo y numero nativos.
 // Colores vivos (los del sistema de Apple: rojo del boton de grabar, verde).
 const NEUTRO_S = 5;
+// Modo prueba: varios viajes del delta (DEMO_VIAJES_S) y luego, DEMO_RESULTADO_S s cada uno, los resultados de fin de segmento
+// (tiempo, vatios medios, delta fijo en rojo y delta fijo en verde).
+const DEMO_VIAJES_S = 160;
+const DEMO_RESULTADO_S = 10;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
 
@@ -103,8 +107,55 @@ class PacerView extends WatchUi.DataField {
         }
     }
 
+    // Fase del modo prueba: 0 = viajes del delta; 1 tiempo, 2 vatios medios, 3 delta fijo en rojo, 4 delta fijo en verde.
+    private function demoPhase() as Number {
+        var t = (System.getTimer() / 1000) % (DEMO_VIAJES_S + 4 * DEMO_RESULTADO_S);
+        if (t < DEMO_VIAJES_S) {
+            return 0;
+        }
+        return 1 + ((t - DEMO_VIAJES_S) / DEMO_RESULTADO_S);
+    }
+
+    private function drawDemoResult(dc as Graphics.Dc, phase) as Void {
+        var nativeBg = getBackgroundColor();
+        var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+        var bg = nativeBg;
+        var title = "TIEMPO";
+        var digits = "4:37";
+        if (phase == 1) {
+            bg = COLOR_BEHIND;      // delta final +12 s: rojo en todo
+            fg = Graphics.COLOR_WHITE;
+        } else if (phase == 2) {
+            title = "WATIOS";
+            digits = "285";
+            bg = COLOR_AHEAD;       // delta final dentro de +-5 s: verde
+            fg = Graphics.COLOR_WHITE;
+        } else if (phase == 3) {
+            title = "DELTA";
+            digits = "12";
+            bg = COLOR_BEHIND;
+            fg = Graphics.COLOR_WHITE;
+        } else if (phase == 4) {
+            title = "DELTA";
+            digits = "12";
+            bg = COLOR_AHEAD;
+            fg = Graphics.COLOR_WHITE;
+        }
+        dc.setColor(fg, bg);
+        dc.clear();
+        dc.setColor(fg, Graphics.COLOR_TRANSPARENT);
+        var w = dc.getWidth();
+        var h = dc.getHeight();
+        var top = drawTitle(dc, w, h, title);
+        drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, 0, digits, "");
+    }
+
     function onUpdate(dc as Graphics.Dc) as Void {
         var st = _engine.state;
+        if (_demo && demoPhase() != 0) {
+            drawDemoResult(dc, demoPhase());
+            return;
+        }
         if (_demo) {
             _shown = demoShown();
             st = ST_DONE;   // se pinta como un segmento en curso, siempre en modo delta
@@ -113,16 +164,16 @@ class PacerView extends WatchUi.DataField {
         var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
-        if (_mode == MODE_WATTS) {
-            active = (st == ST_RUN);   // al terminar el segmento vuelve la distancia de la ruta, sin congelar el resultado
-        }
-        if (active) {
+        if (st == ST_DONE && !_demo) {
+            // Resultado de fin de segmento (delta, tiempo o vatios): el fondo lo manda el delta final en todos los campos.
+            // Rojo si fue mas de NEUTRO_S s por detras; verde si fue por delante o dentro de +-NEUTRO_S s.
+            bg = (_engine.finalDelta > NEUTRO_S) ? COLOR_BEHIND : COLOR_AHEAD;
+            fg = Graphics.COLOR_WHITE;
+        } else if (active && _mode != MODE_WATTS && _shown.abs() > NEUTRO_S) {
             // Dentro de +-NEUTRO_S s de la liebre: fondo y numero nativos del Garmin (como cualquier otro campo).
             // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco.
-            if (_mode != MODE_WATTS && _shown.abs() > NEUTRO_S) {
-                bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
-                fg = Graphics.COLOR_WHITE;
-            }
+            bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
+            fg = Graphics.COLOR_WHITE;
         }
         dc.setColor(fg, bg);
         dc.clear();
@@ -134,7 +185,7 @@ class PacerView extends WatchUi.DataField {
         if (!active) {
             // Lejos de cualquier salida (>500 m) o sin segmento: dato de la actividad
             // (delta -> velocidad media; ETA -> desnivel acumulado). Cerca: distancia a la salida.
-            var far = (st == ST_COOL) || (st == ST_ABORT) || (_mode == MODE_WATTS && st == ST_DONE) || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M));
+            var far = (st == ST_COOL) || (st == ST_ABORT) || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M));
             if (far && drawActivityDatum(dc, w, h)) {
                 return;
             }
@@ -142,7 +193,8 @@ class PacerView extends WatchUi.DataField {
             return;
         }
 
-        var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : "DELTA";
+        // Al terminar el segmento (HOLD_DONE_MS) se queda el resultado: delta final, tiempo del segmento (ETA) o vatios medios (WATIOS).
+        var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : ((_mode == MODE_ETA && st == ST_DONE) ? "TIEMPO" : "DELTA");
         if (_mode == MODE_WATTS) {
             title = "WATIOS";
         }
@@ -200,6 +252,8 @@ class PacerView extends WatchUi.DataField {
             drawBig(dc, cx, cy, maxW, maxH, 0, _wAvg.format("%d"), "");
         } else if (_mode == MODE_ETA && st == ST_RUN) {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");
+        } else if (_mode == MODE_ETA && st == ST_DONE) {
+            drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.tYou), "");
         } else {
             // Con fondo de color (fuera de +-NEUTRO_S) el color ya dice si vas por delante o por detras: sin signo.
             // Dentro de la zona neutra (fondo nativo) el signo es lo unico que lo indica.
