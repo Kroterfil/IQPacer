@@ -48,6 +48,7 @@ class PacerEngine {
     public var remain = 0.0;      // m que faltan
     public var len = 0.0;         // m del segmento
     public var finalDelta = 0.0;  // s al terminar
+    public var doneAt = 0;        // System.getTimer() al terminar el segmento (para el parpadeo del resultado)
 
     // Índice de salidas
     private var _idx = null;
@@ -363,7 +364,8 @@ class PacerEngine {
         dist = len;
         dGhost = len;
         state = ST_DONE;
-        _holdUntil = System.getTimer() + HOLD_DONE_MS;
+        doneAt = System.getTimer();
+        _holdUntil = doneAt + HOLD_DONE_MS;
     }
 
     // ---------- Líneas de salida y llegada ----------
