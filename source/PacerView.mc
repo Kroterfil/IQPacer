@@ -9,14 +9,18 @@ import Toybox.WatchUi;
 const MODE_DELTA = 0;
 const MODE_ETA = 1;
 const MODE_WATTS = 2;
+const MODE_DIST = 3;   // DIST: durante el segmento, distancia que queda hasta el final; sin segmento, velocidad instantanea; al terminar, cara
 const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; por encima, el dato de la actividad
 // Fondo de color solo cuando te desvias mas de NEUTRO_S segundos de la liebre; dentro, fondo y numero nativos.
 // Colores vivos (los del sistema de Apple: rojo del boton de grabar, verde).
 const NEUTRO_S = 5;
 // Modo prueba: varios viajes del delta (DEMO_VIAJES_S) y luego, DEMO_RESULTADO_S s cada uno, los resultados de fin de segmento
 // (tiempo, vatios medios, delta fijo en rojo y delta fijo en verde).
-const DEMO_VIAJES_S = 160;
-const DEMO_RESULTADO_S = 10;
+const DEMO_VIAJES_S = 40;
+const DEMO_RESULTADO_S = 4;
+const DEMO_PERIODO_S = 20;      // periodo del seno del delta simulado (antes 80 s: la demo se hacia eterna)
+const DEMO_FASES = 9;           // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta verde, 5 DIST km, 6 DIST m, 7 velocidad, 8 cara sonriente, 9 cara enfadada
+const DEMO_TOTAL_S = DEMO_VIAJES_S + DEMO_FASES * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
 
@@ -28,6 +32,7 @@ class PacerView extends WatchUi.DataField {
     private var _avgSpeed = null; // m/s, media de la actividad
     private var _ascent = null;   // m, desnivel positivo acumulado de la actividad
     private var _distance = null; // m, distancia recorrida de la actividad
+    private var _speed = null;    // m/s, velocidad instantanea
     private var _segState = ST_IDLE;  // estado del motor en la muestra anterior (para detectar el inicio del segmento)
     private var _wSum = 0.0;      // W*s acumulados desde la salida del segmento
     private var _wTime = 0.0;     // s acumulados con dato de potencia
@@ -56,6 +61,8 @@ class PacerView extends WatchUi.DataField {
             _mode = MODE_ETA;
         } else if (m != null && m == MODE_WATTS) {
             _mode = MODE_WATTS;
+        } else if (m != null && m == MODE_DIST) {
+            _mode = MODE_DIST;
         }
         var d = Application.Properties.getValue("demo");
         _demo = (d != null && d == true);
@@ -64,7 +71,7 @@ class PacerView extends WatchUi.DataField {
     // Delta simulado del modo prueba: seno de +-95 s con periodo de 80 s (pasa por la zona neutra, el rojo, el verde y el 1:xx).
     private function demoShown() as Number {
         var t = System.getTimer() / 1000.0;
-        return Math.round(95.0 * Math.sin(2.0 * Math.PI * t / 80.0)).toNumber();
+        return Math.round(95.0 * Math.sin(2.0 * Math.PI * t / DEMO_PERIODO_S)).toNumber();
     }
 
     function compute(info as Activity.Info) as Void {
@@ -76,6 +83,7 @@ class PacerView extends WatchUi.DataField {
         _avgSpeed = info.averageSpeed;
         _ascent = info.totalAscent;
         _distance = info.elapsedDistance;
+        _speed = info.currentSpeed;
         var st = _engine.state;
         // Vatios medios del segmento: se reinician al empezar (RUN tras otro estado), se promedian por tiempo
         // mientras dura el segmento; al terminar el campo vuelve a la distancia de la ruta.
@@ -107,9 +115,10 @@ class PacerView extends WatchUi.DataField {
         }
     }
 
-    // Fase del modo prueba: 0 = viajes del delta; 1 tiempo, 2 vatios medios, 3 delta fijo en rojo, 4 delta fijo en verde.
+    // Fase del modo prueba: 0 = viajes del delta; 1 tiempo, 2 vatios medios, 3 delta fijo en rojo, 4 delta fijo en verde,
+    // 5 DIST en km, 6 DIST en metros, 7 velocidad instantanea, 8 cara sonriente (verde), 9 cara enfadada (rojo).
     private function demoPhase() as Number {
-        var t = (System.getTimer() / 1000) % (DEMO_VIAJES_S + 4 * DEMO_RESULTADO_S);
+        var t = (System.getTimer() / 1000) % DEMO_TOTAL_S;
         if (t < DEMO_VIAJES_S) {
             return 0;
         }
@@ -140,9 +149,32 @@ class PacerView extends WatchUi.DataField {
             digits = "12";
             bg = COLOR_AHEAD;
             fg = Graphics.COLOR_BLACK;
+        } else if (phase == 5) {
+            title = "DIST";
+            digits = "1.4";
+            bg = COLOR_AHEAD;       // en el segmento el fondo lo manda el delta, como en el DELTA
+            fg = Graphics.COLOR_BLACK;
+        } else if (phase == 6) {
+            title = "DIST";
+            digits = "850";
+            bg = COLOR_BEHIND;
+            fg = Graphics.COLOR_WHITE;
+        } else if (phase == 7) {
+            title = "VEL";
+            digits = "32.5";        // fuera de segmento: fondo nativo
+        } else if (phase == 8) {
+            title = "DIST";
+            digits = "";
+            bg = COLOR_AHEAD;
+            fg = Graphics.COLOR_BLACK;
+        } else if (phase == 9) {
+            title = "DIST";
+            digits = "";
+            bg = COLOR_BEHIND;
+            fg = Graphics.COLOR_WHITE;
         }
         // Parpadea cada segundo, como el resultado real: fondo de color / fondo nativo con el numero de color.
-        var el = ((System.getTimer() / 1000) % (DEMO_VIAJES_S + 4 * DEMO_RESULTADO_S) - DEMO_VIAJES_S) % DEMO_RESULTADO_S;
+        var el = ((System.getTimer() / 1000) % DEMO_TOTAL_S - DEMO_VIAJES_S) % DEMO_RESULTADO_S;
         if ((el % 2) != 0 && bg != nativeBg) {
             fg = bg;
             bg = nativeBg;
@@ -153,7 +185,40 @@ class PacerView extends WatchUi.DataField {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var top = drawTitle(dc, w, h, title);
-        drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, 0, digits, "");
+        if (phase >= 8) {
+            drawFace(dc, w / 2, top + (h - top) / 2, (((h - top) * 8) / 10) / 2, phase == 8);
+        } else {
+            drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, 0, digits, "");
+        }
+    }
+
+    // Cara dibujada a mano (las fuentes del Edge no traen emoticonos): contorno, ojos y boca (sonrisa, o ceja fruncida y boca hacia abajo).
+    private function drawFace(dc, cx, cy, r, happy) as Void {
+        if (r < 8) {
+            r = 8;
+        }
+        var pen = r / 8;
+        if (pen < 2) {
+            pen = 2;
+        }
+        dc.setPenWidth(pen);
+        dc.drawCircle(cx, cy, r);
+        var ex = (r * 38) / 100;
+        var ey = cy - (r * 22) / 100;
+        var er = r / 9;
+        if (er < 2) {
+            er = 2;
+        }
+        dc.fillCircle(cx - ex, ey, er);
+        dc.fillCircle(cx + ex, ey, er);
+        if (happy) {
+            dc.drawArc(cx, cy, (r * 58) / 100, Graphics.ARC_COUNTER_CLOCKWISE, 205, 335);
+        } else {
+            dc.drawLine(cx - ex - er * 2, ey - er * 3, cx - ex + er * 2, ey - er);
+            dc.drawLine(cx + ex + er * 2, ey - er * 3, cx + ex - er * 2, ey - er);
+            dc.drawArc(cx, cy + (r * 52) / 100, (r * 38) / 100, Graphics.ARC_COUNTER_CLOCKWISE, 35, 145);
+        }
+        dc.setPenWidth(1);
     }
 
     function onUpdate(dc as Graphics.Dc) as Void {
@@ -209,8 +274,15 @@ class PacerView extends WatchUi.DataField {
         var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : ((_mode == MODE_ETA && st == ST_DONE) ? "TIEMPO" : "DELTA");
         if (_mode == MODE_WATTS) {
             title = "WATIOS";
+        } else if (_mode == MODE_DIST) {
+            title = "DIST";
         }
         var top = drawTitle(dc, w, h, title);
+        if (_mode == MODE_DIST && st == ST_DONE) {
+            // Fin de segmento: sonriente si el fondo es verde (por delante o dentro de +-NEUTRO_S s), enfadada si es rojo.
+            drawFace(dc, w / 2, top + (h - top) / 2, (((h - top) * 8) / 10) / 2, _engine.finalDelta <= NEUTRO_S);
+            return;
+        }
         drawMain(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, st);
     }
 
@@ -235,7 +307,16 @@ class PacerView extends WatchUi.DataField {
 
     private function drawActivityDatum(dc, w, h) as Boolean {
         var digits = "0";
-        if (_mode == MODE_WATTS) {
+        if (_mode == MODE_DIST) {
+            digits = "0.0";
+            if (_speed != null) {
+                var t = (_speed * 36.0).toNumber();   // decimas de km/h
+                digits = (t / 10).format("%d") + "." + (t % 10).format("%d");
+            }
+            var topV = drawTitle(dc, w, h, "VEL");
+            drawBig(dc, w / 2, topV + (h - topV) / 2, w - 8, ((h - topV) * 9) / 10, 0, digits, "");
+            return true;
+        } else if (_mode == MODE_WATTS) {
             digits = "0.0";
             if (_distance != null) {
                 var t = (_distance / 100.0).toNumber();   // décimas de km
@@ -260,7 +341,19 @@ class PacerView extends WatchUi.DataField {
 
     // Dato principal: delta con signo, o ETA en m:ss. Al terminar, siempre el resultado.
     private function drawMain(dc, cx, cy, maxW, maxH, st) as Void {
-        if (_mode == MODE_WATTS) {
+        if (_mode == MODE_DIST) {
+            // Distancia que queda: en km con un decimal a partir de 1 km; por debajo, metros enteros. Sin unidades.
+            var rem = _engine.remain;
+            if (rem < 0) {
+                rem = 0.0;
+            }
+            if (rem >= 1000) {
+                var t = (rem / 100.0).toNumber();
+                drawBig(dc, cx, cy, maxW, maxH, 0, (t / 10).format("%d") + "." + (t % 10).format("%d"), "");
+            } else {
+                drawBig(dc, cx, cy, maxW, maxH, 0, rem.toNumber().format("%d"), "");
+            }
+        } else if (_mode == MODE_WATTS) {
             drawBig(dc, cx, cy, maxW, maxH, 0, _wAvg.format("%d"), "");
         } else if (_mode == MODE_ETA && st == ST_RUN) {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");

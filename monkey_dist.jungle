@@ -1,0 +1,3 @@
+project.manifest = manifest_dist.xml
+base.sourcePath = source
+base.resourcePath = resources_dist;resources/segments
