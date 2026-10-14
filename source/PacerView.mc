@@ -131,6 +131,7 @@ class PacerView extends WatchUi.DataField {
         var bg = nativeBg;
         var title = "TIEMPO";
         var digits = "4:37";
+        var sign = 0;
         if (phase == 1) {
             bg = COLOR_BEHIND;      // delta final +12 s: rojo en todo
             fg = Graphics.COLOR_WHITE;
@@ -147,11 +148,12 @@ class PacerView extends WatchUi.DataField {
         } else if (phase == 4) {
             title = "DELTA";
             digits = "12";
+            sign = -1;              // por delante de la liebre: signo menos
             bg = COLOR_AHEAD;
             fg = Graphics.COLOR_BLACK;
         } else if (phase == 5) {
             title = "DIST";
-            digits = "1.4";
+            digits = "1.43";
             bg = COLOR_AHEAD;       // en el segmento el fondo lo manda el delta, como en el DELTA
             fg = Graphics.COLOR_BLACK;
         } else if (phase == 6) {
@@ -188,7 +190,7 @@ class PacerView extends WatchUi.DataField {
         if (phase >= 8) {
             drawFace(dc, w / 2, top + (h - top) / 2, (((h - top) * 8) / 10) / 2, phase == 8);
         } else {
-            drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, 0, digits, "");
+            drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, sign, digits, "");
         }
     }
 
@@ -246,9 +248,9 @@ class PacerView extends WatchUi.DataField {
             } else {
                 fg = c;
             }
-        } else if (active && _mode != MODE_WATTS && _shown.abs() > NEUTRO_S) {
+        } else if (active && _shown.abs() > NEUTRO_S) {
             // Dentro de +-NEUTRO_S s de la liebre: fondo y numero nativos del Garmin (como cualquier otro campo).
-            // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco.
+            // Fuera: fondo rojo (vas detras) o verde (vas por delante) y numero blanco, en TODOS los campos (tambien WATIOS).
             bg = (_shown > 0) ? COLOR_BEHIND : COLOR_AHEAD;
             fg = (_shown > 0) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;   // negro sobre verde: mas legible
         }
@@ -342,14 +344,14 @@ class PacerView extends WatchUi.DataField {
     // Dato principal: delta con signo, o ETA en m:ss. Al terminar, siempre el resultado.
     private function drawMain(dc, cx, cy, maxW, maxH, st) as Void {
         if (_mode == MODE_DIST) {
-            // Distancia que queda: en km con un decimal a partir de 1 km; por debajo, metros enteros. Sin unidades.
+            // Distancia que queda: en km con dos decimales a partir de 1 km (1.43); por debajo, metros enteros. Sin unidades.
             var rem = _engine.remain;
             if (rem < 0) {
                 rem = 0.0;
             }
             if (rem >= 1000) {
-                var t = (rem / 100.0).toNumber();
-                drawBig(dc, cx, cy, maxW, maxH, 0, (t / 10).format("%d") + "." + (t % 10).format("%d"), "");
+                var t = (rem / 10.0).toNumber();   // centesimas de km
+                drawBig(dc, cx, cy, maxW, maxH, 0, (t / 100).format("%d") + "." + (t % 100).format("%02d"), "");
             } else {
                 drawBig(dc, cx, cy, maxW, maxH, 0, rem.toNumber().format("%d"), "");
             }
@@ -360,9 +362,9 @@ class PacerView extends WatchUi.DataField {
         } else if (_mode == MODE_ETA && st == ST_DONE) {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.tYou), "");
         } else {
-            // Con fondo de color (fuera de +-NEUTRO_S) el color ya dice si vas por delante o por detras: sin signo.
-            // Dentro de la zona neutra (fondo nativo) el signo es lo unico que lo indica.
-            var sign = (_shown.abs() > NEUTRO_S) ? 0 : ((_shown > 0) ? 1 : ((_shown < 0) ? -1 : 0));
+            // Por delante de la liebre siempre lleva el signo menos (-12), tambien con fondo verde. Por detras, con fondo rojo va sin signo;
+            // dentro de la zona neutra (fondo nativo) el signo (+ o -) es lo unico que lo indica.
+            var sign = (_shown < 0) ? -1 : ((_shown.abs() > NEUTRO_S) ? 0 : ((_shown > 0) ? 1 : 0));
             // A partir de 1 minuto, m:ss (1:01), igual que la ETA; por debajo, los segundos a secas.
             var a = _shown.abs();
             drawBig(dc, cx, cy, maxW, maxH, sign, (a >= 60) ? fmtTime(a) : a.format("%d"), "");
