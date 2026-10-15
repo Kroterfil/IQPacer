@@ -47,6 +47,7 @@ class PacerEngine {
     public var dGhost = 0.0;      // m de la liebre en tu tiempo
     public var remain = 0.0;      // m que faltan
     public var len = 0.0;         // m del segmento
+    public var target = 0.0;      // s totales de la liebre en este segmento: el tiempo contra el que se corre (lo enseña el ETA en los avisos)
     public var finalDelta = 0.0;  // s al terminar
     public var doneAt = 0;        // System.getTimer() al terminar el segmento (para el parpadeo del resultado)
 
@@ -608,6 +609,7 @@ class PacerEngine {
             }
         }
         _total = _g[_g.size() - 1] / 10.0;
+        target = _total;
         return true;
     }
 

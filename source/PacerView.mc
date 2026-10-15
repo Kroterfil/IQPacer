@@ -14,6 +14,9 @@ const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; p
 // Fondo de color solo cuando te desvias mas de NEUTRO_S segundos de la liebre; dentro, fondo y numero nativos.
 // Colores vivos (los del sistema de Apple: rojo del boton de grabar, verde).
 const NEUTRO_S = 5;
+// ETA: cada vez que el tiempo que falta llega a un minuto exacto (XX:00: 12:00, 11:00 ... 2:00, 1:00), el campo enseña durante OBJ_SHOW_MS el
+// tiempo contra el que se corre (el tiempo total de la liebre en el segmento) y vuelve a la cuenta atras.
+const OBJ_SHOW_MS = 5000;
 // Modo prueba: varios viajes del delta (DEMO_VIAJES_S) y luego, DEMO_RESULTADO_S s cada uno, los resultados de fin de segmento
 // (tiempo, vatios medios, delta fijo en rojo y delta fijo en verde).
 const DEMO_VIAJES_S = 40;
@@ -23,6 +26,7 @@ const DEMO_FASES = 9;           // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta ver
 const DEMO_TOTAL_S = DEMO_VIAJES_S + DEMO_FASES * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
+const COLOR_OBJ = 0xFFCC00;     // amarillo vivo: aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
 
 class PacerView extends WatchUi.DataField {
     private var _engine;
@@ -38,6 +42,8 @@ class PacerView extends WatchUi.DataField {
     private var _wTime = 0.0;     // s acumulados con dato de potencia
     private var _wLastT = 0.0;    // tYou de la muestra anterior
     private var _wAvg = 0;        // W medios desde la salida (solo se muestra durante el segmento)
+    private var _etaPrev = -1.0;  // ETA de la muestra anterior (para detectar que cruza 4:00, 3:00, 2:00 o 1:00)
+    private var _objUntil = 0;    // System.getTimer() hasta el que se enseña el tiempo objetivo
     private var _bigFonts = [
         Graphics.FONT_NUMBER_THAI_HOT,
         Graphics.FONT_NUMBER_HOT,
@@ -104,6 +110,21 @@ class PacerView extends WatchUi.DataField {
             }
         }
         _segState = st;
+        if (st == ST_RUN) {
+            // ETA: cada vez que el tiempo que falta pasa de mas de un minuto exacto a ese minuto o menos (XX:00, el que sea, no solo 4:00..1:00),
+            // se enseña el objetivo 5 s. La marca de 0:00 (meta) no avisa, ni las que ya estan por debajo al empezar el segmento.
+            if (_etaPrev >= 0) {
+                var kPrev = Math.ceil(_etaPrev / 60.0).toNumber();
+                var kNow = Math.ceil(_engine.eta / 60.0).toNumber();
+                if (kNow >= 1 && kPrev > kNow) {
+                    _objUntil = System.getTimer() + OBJ_SHOW_MS;
+                }
+            }
+            _etaPrev = _engine.eta;
+        } else {
+            _etaPrev = -1.0;
+            _objUntil = 0;
+        }
         if (st == ST_RUN || st == ST_DONE) {
             // Redondeo con histéresis de 0,3 s para que el número no baile
             var d = _engine.delta;
@@ -237,7 +258,12 @@ class PacerView extends WatchUi.DataField {
         var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
-        if (st == ST_DONE && !_demo) {
+        var mostrandoObj = (_mode == MODE_ETA && st == ST_RUN && !_demo && System.getTimer() < _objUntil);
+        if (mostrandoObj) {
+            // Aviso del tiempo objetivo (cada XX:00 del ETA): fondo amarillo con el numero en negro, durante 5 s
+            bg = COLOR_OBJ;
+            fg = Graphics.COLOR_BLACK;
+        } else if (st == ST_DONE && !_demo) {
             // Resultado de fin de segmento (delta, tiempo o vatios): el fondo lo manda el delta final en todos los campos.
             // Rojo si fue mas de NEUTRO_S s por detras; verde si fue por delante o dentro de +-NEUTRO_S s.
             // Parpadea cada segundo: fondo de color con numero blanco / fondo nativo con numero de color.
@@ -273,7 +299,7 @@ class PacerView extends WatchUi.DataField {
         }
 
         // Al terminar el segmento (HOLD_DONE_MS) se queda el resultado: delta final, tiempo del segmento (ETA) o vatios medios (WATIOS).
-        var title = (_mode == MODE_ETA && st == ST_RUN) ? "ETA" : ((_mode == MODE_ETA && st == ST_DONE) ? "TIEMPO" : "DELTA");
+        var title = (_mode == MODE_ETA && st == ST_RUN) ? (mostrandoObj ? "OBJETIVO" : "ETA") : ((_mode == MODE_ETA && st == ST_DONE) ? "TIEMPO" : "DELTA");
         if (_mode == MODE_WATTS) {
             title = "WATIOS";
         } else if (_mode == MODE_DIST) {
@@ -358,7 +384,8 @@ class PacerView extends WatchUi.DataField {
         } else if (_mode == MODE_WATTS) {
             drawBig(dc, cx, cy, maxW, maxH, 0, _wAvg.format("%d"), "");
         } else if (_mode == MODE_ETA && st == ST_RUN) {
-            drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.eta), "");
+            // Aviso de marca (4:00, 3:00, 2:00, 1:00): 5 s el tiempo contra el que se corre; despues, la cuenta atras
+            drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime((System.getTimer() < _objUntil) ? _engine.target : _engine.eta), "");
         } else if (_mode == MODE_ETA && st == ST_DONE) {
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime(_engine.tYou), "");
         } else {
