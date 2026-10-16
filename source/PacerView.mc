@@ -27,7 +27,7 @@ const DEMO_FASES = 14;          // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta ver
 const DEMO_TOTAL_S = DEMO_VIAJES_S + DEMO_FASES * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
-const COLOR_OBJ = 0xFFE500;     // amarillo MUY vivo (casi puro, nada pastel): aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
+const COLOR_OBJ = 0xFFFF00;     // amarillo PURO (el mas vivo que da la pantalla): aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
 
 class PacerView extends WatchUi.DataField {
     private var _engine;
