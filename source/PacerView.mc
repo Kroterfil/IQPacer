@@ -22,7 +22,8 @@ const OBJ_SHOW_MS = 5000;
 const DEMO_VIAJES_S = 40;
 const DEMO_RESULTADO_S = 4;
 const DEMO_PERIODO_S = 20;      // periodo del seno del delta simulado (antes 80 s: la demo se hacia eterna)
-const DEMO_FASES = 9;           // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta verde, 5 DIST km, 6 DIST m, 7 velocidad, 8 cara sonriente, 9 cara enfadada
+const DEMO_FASES = 14;          // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta verde, 5 DIST km, 6 DIST m, 7 velocidad, 8 cara sonriente, 9 cara enfadada,
+                                // 10 ETA en curso, 11 ETA: aviso OBJETIVO (amarillo), 12 V.MEDIA, 13 ALT, 14 DIST de la actividad
 const DEMO_TOTAL_S = DEMO_VIAJES_S + DEMO_FASES * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
@@ -137,7 +138,8 @@ class PacerView extends WatchUi.DataField {
     }
 
     // Fase del modo prueba: 0 = viajes del delta; 1 tiempo, 2 vatios medios, 3 delta fijo en rojo, 4 delta fijo en verde,
-    // 5 DIST en km, 6 DIST en metros, 7 velocidad instantanea, 8 cara sonriente (verde), 9 cara enfadada (rojo).
+    // 5 DIST en km, 6 DIST en metros, 7 velocidad instantanea, 8 cara sonriente (verde), 9 cara enfadada (rojo),
+    // 10 ETA en curso, 11 aviso OBJETIVO (amarillo), 12 V.MEDIA, 13 ALT, 14 DIST de la actividad.
     private function demoPhase() as Number {
         var t = (System.getTimer() / 1000) % DEMO_TOTAL_S;
         if (t < DEMO_VIAJES_S) {
@@ -195,10 +197,27 @@ class PacerView extends WatchUi.DataField {
             digits = "";
             bg = COLOR_BEHIND;
             fg = Graphics.COLOR_WHITE;
+        } else if (phase == 10) {
+            title = "ETA";
+            digits = "3:42";        // cuenta atras del ETA: fondo nativo (el color solo aparece fuera de +-5 s)
+        } else if (phase == 11) {
+            title = "OBJETIVO";
+            digits = "8:42";        // cada XX:00 del ETA: 5 s el tiempo objetivo, fondo amarillo y numero negro (fijo, sin parpadeo)
+            bg = COLOR_OBJ;
+            fg = Graphics.COLOR_BLACK;
+        } else if (phase == 12) {
+            title = "V.MEDIA";
+            digits = "28.4";        // fuera de segmento (campo DELTA): velocidad media de la actividad
+        } else if (phase == 13) {
+            title = "ALT";
+            digits = "1234";        // fuera de segmento (campo ETA): desnivel acumulado
+        } else if (phase == 14) {
+            title = "DIST";
+            digits = "52.3";        // fuera de segmento (campo WATIOS): distancia de la actividad en km
         }
         // Parpadea cada segundo, como el resultado real: fondo de color / fondo nativo con el numero de color.
         var el = ((System.getTimer() / 1000) % DEMO_TOTAL_S - DEMO_VIAJES_S) % DEMO_RESULTADO_S;
-        if ((el % 2) != 0 && bg != nativeBg) {
+        if ((el % 2) != 0 && bg != nativeBg && phase != 11) {
             fg = bg;
             bg = nativeBg;
         }
