@@ -19,9 +19,9 @@ const NEUTRO_S = 5;
 const OBJ_SHOW_MS = 5000;
 // Modo prueba: varios viajes del delta (DEMO_VIAJES_S) y luego, DEMO_RESULTADO_S s cada uno, los resultados de fin de segmento
 // (tiempo, vatios medios, delta fijo en rojo y delta fijo en verde).
-const DEMO_VIAJES_S = 40;
-const DEMO_RESULTADO_S = 4;
-const DEMO_PERIODO_S = 20;      // periodo del seno del delta simulado (antes 80 s: la demo se hacia eterna)
+const DEMO_VIAJES_S = 16;
+const DEMO_RESULTADO_S = 3;
+const DEMO_PERIODO_S = 8;       // periodo del seno del delta simulado: es solo una demo, que pase rapido por rojo, neutro y verde
 const DEMO_FASES = 14;          // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta verde, 5 DIST km, 6 DIST m, 7 velocidad, 8 cara sonriente, 9 cara enfadada,
                                 // 10 ETA en curso, 11 ETA: aviso OBJETIVO (amarillo), 12 V.MEDIA, 13 ALT, 14 DIST de la actividad
 const DEMO_TOTAL_S = DEMO_VIAJES_S + DEMO_FASES * DEMO_RESULTADO_S;
