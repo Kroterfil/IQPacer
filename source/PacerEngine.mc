@@ -67,6 +67,7 @@ class PacerEngine {
     private var _uex = 0.0;
     private var _uey = 1.0;
     private var _g = null;       // liebre, décimas de segundo
+    private var _w = null;       // W medios de la liebre desde la salida en cada punto de la rejilla (null si el segmento no los trae)
     private var _px = null;      // recorrido, m
     private var _py = null;
     private var _cum = null;     // longitud acumulada del recorrido
@@ -545,6 +546,23 @@ class PacerEngine {
         return (_g[i] + f * (_g[i + 1] - _g[i])) / 10.0;
     }
 
+    // W medios de la liebre desde la salida hasta donde vas (tu distancia en el segmento); -1 si el segmento no trae vatios
+    function hareWatts() {
+        if (_w == null || _w.size() < 2) {
+            return -1;
+        }
+        var wn = _w.size();
+        var i = (dist / _step).toNumber();
+        if (i < 0) {
+            i = 0;
+        }
+        if (i >= wn - 1) {
+            return _w[wn - 1];
+        }
+        var f = (dist - i * _step) / _step;
+        return Math.round(_w[i] + f * (_w[i + 1] - _w[i])).toNumber();
+    }
+
     // Distancia de la liebre (m) en el tiempo t: búsqueda binaria inversa
     function ghostDistAt(t) {
         var gn = _g.size();
@@ -592,6 +610,7 @@ class PacerEngine {
         _uex = s["ue"][0].toFloat();
         _uey = s["ue"][1].toFloat();
         _g = s["g"];
+        _w = s["w"];
         var p = s["p"];
         _n = p.size() / 2;
         _px = new [_n];
@@ -615,6 +634,7 @@ class PacerEngine {
 
     private function unload() as Void {
         _g = null;
+        _w = null;
         _px = null;
         _py = null;
         _cum = null;

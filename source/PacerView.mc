@@ -46,6 +46,7 @@ class PacerView extends WatchUi.DataField {
     private var _wAvg = 0;        // W medios desde la salida (solo se muestra durante el segmento)
     private var _etaPrev = -1.0;  // ETA de la muestra anterior (para detectar que cruza 4:00, 3:00, 2:00 o 1:00)
     private var _objUntil = 0;    // System.getTimer() hasta el que se enseña el tiempo objetivo
+    private var _objW = -1;       // W medios de la liebre hasta tu punto, fijados al llegar el ETA a un minuto exacto (-1 si no hay)
     private var _bigFonts = [
         Graphics.FONT_NUMBER_THAI_HOT,
         Graphics.FONT_NUMBER_HOT,
@@ -113,12 +114,14 @@ class PacerView extends WatchUi.DataField {
                 var kNow = Math.ceil(_engine.eta / 60.0).toNumber();
                 if (kNow >= 1 && kPrev > kNow) {
                     _objUntil = System.getTimer() + OBJ_SHOW_MS;
+                    _objW = _engine.hareWatts();   // a la vez, el campo WATIOS enseña los vatios medios que llevaba la liebre hasta este punto
                 }
             }
             _etaPrev = _engine.eta;
         } else {
             _etaPrev = -1.0;
             _objUntil = 0;
+            _objW = -1;
         }
         if (st == ST_RUN || st == ST_DONE) {
             // Redondeo con histéresis de 0,3 s para que el número no baile
@@ -180,7 +183,13 @@ class PacerView extends WatchUi.DataField {
             // WATIOS en curso: vatios medios del segmento, con el fondo del delta (rojo, neutro, verde)
             title = "WATIOS";
             digits = ["276", "281", "285", "287", "290"][el];
-            if (el < 2) {
+            if (el >= 2) {
+                // a la vez que el aviso OBJETIVO del ETA: los W medios de la liebre hasta ese punto, en amarillo
+                title = "LIEBRE";
+                digits = "231";
+                bg = COLOR_OBJ;
+                fg = Graphics.COLOR_BLACK;
+            } else if (el < 2) {
                 bg = COLOR_BEHIND;
                 fg = Graphics.COLOR_WHITE;
             } else if (el > 2) {
@@ -299,7 +308,8 @@ class PacerView extends WatchUi.DataField {
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
         var mostrandoObj = (_mode == MODE_ETA && st == ST_RUN && !_demo && System.getTimer() < _objUntil);
-        if (mostrandoObj) {
+        var mostrandoObjW = (_mode == MODE_WATTS && st == ST_RUN && !_demo && _objW >= 0 && System.getTimer() < _objUntil);
+        if (mostrandoObj || mostrandoObjW) {
             // Aviso del tiempo objetivo (cada XX:00 del ETA): fondo amarillo con el numero en negro, durante 5 s
             bg = COLOR_OBJ;
             fg = Graphics.COLOR_BLACK;
@@ -341,7 +351,7 @@ class PacerView extends WatchUi.DataField {
         // Al terminar el segmento (HOLD_DONE_MS) se queda el resultado: delta final, tiempo del segmento (ETA) o vatios medios (WATIOS).
         var title = (_mode == MODE_ETA && st == ST_RUN) ? (mostrandoObj ? "OBJETIVO" : "ETA") : ((_mode == MODE_ETA && st == ST_DONE) ? "TIEMPO" : "DELTA");
         if (_mode == MODE_WATTS) {
-            title = "WATIOS";
+            title = mostrandoObjW ? "LIEBRE" : "WATIOS";
         } else if (_mode == MODE_DIST) {
             title = "DIST";
         }
@@ -422,7 +432,8 @@ class PacerView extends WatchUi.DataField {
                 drawBig(dc, cx, cy, maxW, maxH, 0, rem.toNumber().format("%d"), "");
             }
         } else if (_mode == MODE_WATTS) {
-            drawBig(dc, cx, cy, maxW, maxH, 0, _wAvg.format("%d"), "");
+            var vw = (st == ST_RUN && _objW >= 0 && System.getTimer() < _objUntil) ? _objW : _wAvg;   // aviso a cada XX:00: W de la liebre
+            drawBig(dc, cx, cy, maxW, maxH, 0, vw.format("%d"), "");
         } else if (_mode == MODE_ETA && st == ST_RUN) {
             // Aviso de marca (4:00, 3:00, 2:00, 1:00): 5 s el tiempo contra el que se corre; despues, la cuenta atras
             drawBig(dc, cx, cy, maxW, maxH, 0, fmtTime((System.getTimer() < _objUntil) ? _engine.target : _engine.eta), "");

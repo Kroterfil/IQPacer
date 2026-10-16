@@ -111,6 +111,15 @@ def build(src):
     last = simple[-1]
     ue = unit(last[0] - ex, last[1] - ey)
 
+    # Vatios medios de la liebre AE desde la salida hasta cada punto de la rejilla (campo WATIOS: aviso a cada XX:00 del ETA). Opcional: los
+    # segmentos exportados antes de que KSE los llevase no lo traen y el campo no enseña el aviso.
+    watts = None
+    rw = data.get("rabbit_watts") or []
+    if len(rw) >= 2:
+        wx = [float(p_["distance_m"]) for p_ in rw]
+        wy = [float(p_["avg_w"]) for p_ in rw]
+        watts = [int(round(interp(wx, wy, d))) for d in grid]
+
     seg = {
         "lat0": round(lat0, 7),
         "lon0": round(lon0, 7),
@@ -122,6 +131,7 @@ def build(src):
         "u": list(u),                    # rumbo de salida
         "ue": list(ue),                  # rumbo de llegada
         "g": ghost,                      # décimas de segundo
+        **({"w": watts} if watts else {}),  # W medios de la liebre desde la salida (misma rejilla que "g")
         "p": [v for x, y in simple for v in (int(round(x * 10)), int(round(y * 10)))],  # decímetros
     }
     info = {
