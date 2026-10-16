@@ -17,14 +17,15 @@ const NEUTRO_S = 5;
 // ETA: cada vez que el tiempo que falta llega a un minuto exacto (XX:00: 12:00, 11:00 ... 2:00, 1:00), el campo enseña durante OBJ_SHOW_MS el
 // tiempo contra el que se corre (el tiempo total de la liebre en el segmento) y vuelve a la cuenta atras.
 const OBJ_SHOW_MS = 5000;
-// Modo prueba: varios viajes del delta (DEMO_VIAJES_S) y luego, DEMO_RESULTADO_S s cada uno, los resultados de fin de segmento
-// (tiempo, vatios medios, delta fijo en rojo y delta fijo en verde).
-const DEMO_VIAJES_S = 16;
+// Modo prueba (DEMO): ensena una tras otra las cuatro variantes en curso (DELTA, ETA, WATIOS, DIST), DEMO_CAMPO_S s cada una, y al final los
+// resultados de fin de segmento (tiempo, vatios, delta en rojo y en verde, las dos caras) y los datos de fuera de segmento (V.MEDIA, ALT,
+// DIST de la actividad, VEL), DEMO_RESULTADO_S s cada uno. Despues vuelve a empezar.
+const DEMO_CAMPO_S = 5;
 const DEMO_RESULTADO_S = 3;
-const DEMO_PERIODO_S = 8;       // periodo del seno del delta simulado: es solo una demo, que pase rapido por rojo, neutro y verde
-const DEMO_FASES = 14;          // 1 tiempo, 2 vatios, 3 delta rojo, 4 delta verde, 5 DIST km, 6 DIST m, 7 velocidad, 8 cara sonriente, 9 cara enfadada,
-                                // 10 ETA en curso, 11 ETA: aviso OBJETIVO (amarillo), 12 V.MEDIA, 13 ALT, 14 DIST de la actividad
-const DEMO_TOTAL_S = DEMO_VIAJES_S + DEMO_FASES * DEMO_RESULTADO_S;
+const DEMO_CAMPOS = 4;          // 1 DELTA en curso, 2 ETA en curso (con el aviso OBJETIVO), 3 WATIOS en curso, 4 DIST en curso
+const DEMO_RESULTADOS = 10;     // 5 tiempo, 6 vatios, 7 delta rojo, 8 delta verde, 9 cara sonriente, 10 cara enfadada,
+                                // 11 V.MEDIA, 12 ALT, 13 DIST de la actividad, 14 velocidad
+const DEMO_TOTAL_S = DEMO_CAMPOS * DEMO_CAMPO_S + DEMO_RESULTADOS * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
 const COLOR_OBJ = 0xFFFF00;     // amarillo PURO (el mas vivo que da la pantalla): aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
@@ -33,7 +34,7 @@ class PacerView extends WatchUi.DataField {
     private var _engine;
     private var _mode = MODE_DELTA;
     private var _shown = 0;       // segundos mostrados (con histéresis)
-    private var _demo = false;    // modo prueba: simula el delta (de +95 a -95 s en 80 s) para ver colores y formato sin segmento
+    private var _demo = false;    // modo prueba: ensena las cuatro variantes y los resultados, uno tras otro, sin segmento
     private var _avgSpeed = null; // m/s, media de la actividad
     private var _ascent = null;   // m, desnivel positivo acumulado de la actividad
     private var _distance = null; // m, distancia recorrida de la actividad
@@ -75,15 +76,8 @@ class PacerView extends WatchUi.DataField {
         _demo = (d != null && d == true);
     }
 
-    // Delta simulado del modo prueba: seno de +-95 s con periodo de 80 s (pasa por la zona neutra, el rojo, el verde y el 1:xx).
-    private function demoShown() as Number {
-        var t = System.getTimer() / 1000.0;
-        return Math.round(95.0 * Math.sin(2.0 * Math.PI * t / DEMO_PERIODO_S)).toNumber();
-    }
-
     function compute(info as Activity.Info) as Void {
         if (_demo) {
-            _shown = demoShown();
             return;
         }
         _engine.compute(info);
@@ -137,87 +131,118 @@ class PacerView extends WatchUi.DataField {
         }
     }
 
-    // Fase del modo prueba: 0 = viajes del delta; 1 tiempo, 2 vatios medios, 3 delta fijo en rojo, 4 delta fijo en verde,
-    // 5 DIST en km, 6 DIST en metros, 7 velocidad instantanea, 8 cara sonriente (verde), 9 cara enfadada (rojo),
-    // 10 ETA en curso, 11 aviso OBJETIVO (amarillo), 12 V.MEDIA, 13 ALT, 14 DIST de la actividad.
-    private function demoPhase() as Number {
+    // Fase del modo prueba (1..14, ver las constantes DEMO_*) y segundo dentro de ella: se devuelven como [fase, segundo].
+    private function demoSlot() as Array {
         var t = (System.getTimer() / 1000) % DEMO_TOTAL_S;
-        if (t < DEMO_VIAJES_S) {
-            return 0;
+        var campos = DEMO_CAMPOS * DEMO_CAMPO_S;
+        if (t < campos) {
+            return [1 + (t / DEMO_CAMPO_S), t % DEMO_CAMPO_S];
         }
-        return 1 + ((t - DEMO_VIAJES_S) / DEMO_RESULTADO_S);
+        var r = t - campos;
+        return [DEMO_CAMPOS + 1 + (r / DEMO_RESULTADO_S), r % DEMO_RESULTADO_S];
     }
 
-    private function drawDemoResult(dc as Graphics.Dc, phase) as Void {
+    private function drawDemo(dc as Graphics.Dc) as Void {
+        var slot = demoSlot();
+        var phase = slot[0];
+        var el = slot[1];
         var nativeBg = getBackgroundColor();
         var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
         var bg = nativeBg;
         var title = "TIEMPO";
         var digits = "4:37";
         var sign = 0;
+        var parpadea = false;
         if (phase == 1) {
+            // DELTA en curso: pasa por el rojo (detras), la zona neutra y el verde (por delante, con el signo menos)
+            title = "DELTA";
+            var d = [14, 9, 2, -9, -14][el];
+            digits = d.abs().toString();
+            if (d < 0) {
+                sign = -1;
+            }
+            if (d.abs() > NEUTRO_S) {
+                bg = (d > 0) ? COLOR_BEHIND : COLOR_AHEAD;
+                fg = (d > 0) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+            }
+        } else if (phase == 2) {
+            // ETA en curso: cuenta atras; al llegar a un minuto exacto (3:00) enseña el tiempo objetivo en amarillo
+            if (el < 2) {
+                title = "ETA";
+                digits = "3:0" + (2 - el).toString();
+            } else {
+                title = "OBJETIVO";
+                digits = "8:42";
+                bg = COLOR_OBJ;
+                fg = Graphics.COLOR_BLACK;
+            }
+        } else if (phase == 3) {
+            // WATIOS en curso: vatios medios del segmento, con el fondo del delta (rojo, neutro, verde)
+            title = "WATIOS";
+            digits = ["276", "281", "285", "287", "290"][el];
+            if (el < 2) {
+                bg = COLOR_BEHIND;
+                fg = Graphics.COLOR_WHITE;
+            } else if (el > 2) {
+                bg = COLOR_AHEAD;
+                fg = Graphics.COLOR_BLACK;
+            }
+        } else if (phase == 4) {
+            // DIST en curso: lo que queda, en km con dos decimales y, por debajo de 1000 m, en metros; fondo del delta (verde)
+            title = "DIST";
+            digits = ["1.04", "1.02", "990", "970", "950"][el];
+            bg = COLOR_AHEAD;
+            fg = Graphics.COLOR_BLACK;
+        } else if (phase == 5) {
             bg = COLOR_BEHIND;      // delta final +12 s: rojo en todo
             fg = Graphics.COLOR_WHITE;
-        } else if (phase == 2) {
+            parpadea = true;
+        } else if (phase == 6) {
             title = "WATIOS";
             digits = "285";
             bg = COLOR_AHEAD;       // delta final dentro de +-5 s: verde
             fg = Graphics.COLOR_BLACK;
-        } else if (phase == 3) {
+            parpadea = true;
+        } else if (phase == 7) {
             title = "DELTA";
             digits = "12";
             bg = COLOR_BEHIND;
             fg = Graphics.COLOR_WHITE;
-        } else if (phase == 4) {
+            parpadea = true;
+        } else if (phase == 8) {
             title = "DELTA";
             digits = "12";
             sign = -1;              // por delante de la liebre: signo menos
             bg = COLOR_AHEAD;
             fg = Graphics.COLOR_BLACK;
-        } else if (phase == 5) {
-            title = "DIST";
-            digits = "1.43";
-            bg = COLOR_AHEAD;       // en el segmento el fondo lo manda el delta, como en el DELTA
-            fg = Graphics.COLOR_BLACK;
-        } else if (phase == 6) {
-            title = "DIST";
-            digits = "850";
-            bg = COLOR_BEHIND;
-            fg = Graphics.COLOR_WHITE;
-        } else if (phase == 7) {
-            title = "VEL";
-            digits = "32.5";        // fuera de segmento: fondo nativo
-        } else if (phase == 8) {
+            parpadea = true;
+        } else if (phase == 9) {
             title = "DIST";
             digits = "";
             bg = COLOR_AHEAD;
             fg = Graphics.COLOR_BLACK;
-        } else if (phase == 9) {
+            parpadea = true;
+        } else if (phase == 10) {
             title = "DIST";
             digits = "";
             bg = COLOR_BEHIND;
             fg = Graphics.COLOR_WHITE;
-        } else if (phase == 10) {
-            title = "ETA";
-            digits = "3:42";        // cuenta atras del ETA: fondo nativo (el color solo aparece fuera de +-5 s)
+            parpadea = true;
         } else if (phase == 11) {
-            title = "OBJETIVO";
-            digits = "8:42";        // cada XX:00 del ETA: 5 s el tiempo objetivo, fondo amarillo y numero negro (fijo, sin parpadeo)
-            bg = COLOR_OBJ;
-            fg = Graphics.COLOR_BLACK;
-        } else if (phase == 12) {
             title = "V.MEDIA";
             digits = "28.4";        // fuera de segmento (campo DELTA): velocidad media de la actividad
-        } else if (phase == 13) {
+        } else if (phase == 12) {
             title = "ALT";
             digits = "1234";        // fuera de segmento (campo ETA): desnivel acumulado
-        } else if (phase == 14) {
+        } else if (phase == 13) {
             title = "DIST";
             digits = "52.3";        // fuera de segmento (campo WATIOS): distancia de la actividad en km
+        } else {
+            title = "VEL";
+            digits = "32.5";        // fuera de segmento (campo DIST): velocidad instantanea
         }
-        // Parpadea cada segundo, como el resultado real: fondo de color / fondo nativo con el numero de color.
-        var el = ((System.getTimer() / 1000) % DEMO_TOTAL_S - DEMO_VIAJES_S) % DEMO_RESULTADO_S;
-        if ((el % 2) != 0 && bg != nativeBg && phase != 11) {
+        // Los resultados de fin de segmento parpadean cada segundo, como el real: fondo de color / fondo nativo con el numero de color.
+        if (parpadea && (el % 2) != 0) {
             fg = bg;
             bg = nativeBg;
         }
@@ -227,8 +252,8 @@ class PacerView extends WatchUi.DataField {
         var w = dc.getWidth();
         var h = dc.getHeight();
         var top = drawTitle(dc, w, h, title);
-        if (phase == 8 || phase == 9) {
-            drawFace(dc, w / 2, top + (h - top) / 2, (((h - top) * 8) / 10) / 2, phase == 8);
+        if (phase == 9 || phase == 10) {
+            drawFace(dc, w / 2, top + (h - top) / 2, (((h - top) * 8) / 10) / 2, phase == 9);
         } else {
             drawBig(dc, w / 2, top + (h - top) / 2, w - 8, ((h - top) * 9) / 10, sign, digits, "");
         }
@@ -265,13 +290,9 @@ class PacerView extends WatchUi.DataField {
 
     function onUpdate(dc as Graphics.Dc) as Void {
         var st = _engine.state;
-        if (_demo && demoPhase() != 0) {
-            drawDemoResult(dc, demoPhase());
-            return;
-        }
         if (_demo) {
-            _shown = demoShown();
-            st = ST_DONE;   // se pinta como un segmento en curso, siempre en modo delta
+            drawDemo(dc);
+            return;
         }
         var nativeBg = getBackgroundColor();
         var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
