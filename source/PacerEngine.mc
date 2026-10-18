@@ -67,6 +67,7 @@ class PacerEngine {
     private var _uex = 0.0;
     private var _uey = 1.0;
     private var _g = null;       // liebre, décimas de segundo
+    private var _gd = null;      // distancia (dm) de cada punto de g y w en las contrarrelojes; null = rejilla fija cada _step m
     private var _w = null;       // W medios de la liebre desde la salida en cada punto de la rejilla (null si el segmento no los trae)
     private var _px = null;      // recorrido, m
     private var _py = null;
@@ -533,6 +534,15 @@ class PacerEngine {
     // Tiempo de la liebre (s) en la distancia d: acceso directo por paso fijo
     function ghostAt(d) {
         var gn = _g.size();
+        if (_gd != null) {
+            var k = gdIndex(d);
+            if (k >= gn - 1) {
+                return _g[gn - 1] / 10.0;
+            }
+            var x0 = _gd[k] / 10.0;
+            var x1 = _gd[k + 1] / 10.0;
+            return (_g[k] + ((x1 > x0) ? (d - x0) / (x1 - x0) : 0.0) * (_g[k + 1] - _g[k])) / 10.0;
+        }
         var i = (d / _step).toNumber();
         if (i < 0) {
             i = 0;
@@ -552,6 +562,15 @@ class PacerEngine {
             return -1;
         }
         var wn = _w.size();
+        if (_gd != null) {
+            var k = gdIndex(dist);
+            if (k >= wn - 1) {
+                return _w[wn - 1];
+            }
+            var x0 = _gd[k] / 10.0;
+            var x1 = _gd[k + 1] / 10.0;
+            return Math.round(_w[k] + ((x1 > x0) ? (dist - x0) / (x1 - x0) : 0.0) * (_w[k + 1] - _w[k])).toNumber();
+        }
         var i = (dist / _step).toNumber();
         if (i < 0) {
             i = 0;
@@ -561,6 +580,29 @@ class PacerEngine {
         }
         var f = (dist - i * _step) / _step;
         return Math.round(_w[i] + f * (_w[i + 1] - _w[i])).toNumber();
+    }
+
+    // Contrarrelojes: indice k del ultimo punto de ruptura con distancia <= d (busqueda binaria); gn-1 si d llega al final
+    private function gdIndex(d) {
+        var gn = _gd.size();
+        var dd = d * 10.0;
+        if (dd <= _gd[0]) {
+            return 0;
+        }
+        if (dd >= _gd[gn - 1]) {
+            return gn - 1;
+        }
+        var lo = 0;
+        var hi = gn - 1;
+        while (hi - lo > 1) {
+            var mid = (lo + hi) / 2;
+            if (_gd[mid] <= dd) {
+                lo = mid;
+            } else {
+                hi = mid;
+            }
+        }
+        return lo;
     }
 
     // Distancia de la liebre (m) en el tiempo t: búsqueda binaria inversa
@@ -583,8 +625,8 @@ class PacerEngine {
                 hi = mid;
             }
         }
-        var d0 = lo * _step;
-        var d1 = (hi == gn - 1) ? len : hi * _step;
+        var d0 = (_gd != null) ? _gd[lo] / 10.0 : lo * _step;
+        var d1 = (_gd != null) ? _gd[hi] / 10.0 : ((hi == gn - 1) ? len : hi * _step);
         var span = _g[hi] - _g[lo];
         var f = (span > 0) ? (tt - _g[lo]) / span : 0.0;
         return d0 + f * (d1 - d0);
@@ -610,6 +652,7 @@ class PacerEngine {
         _uex = s["ue"][0].toFloat();
         _uey = s["ue"][1].toFloat();
         _g = s["g"];
+        _gd = s["gd"];
         _w = s["w"];
         var p = s["p"];
         _n = p.size() / 2;
@@ -634,6 +677,7 @@ class PacerEngine {
 
     private function unload() as Void {
         _g = null;
+        _gd = null;
         _w = null;
         _px = null;
         _py = null;

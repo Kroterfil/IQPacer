@@ -102,6 +102,7 @@ class Engine:
         self.ux, self.uy = s["u"]
         self.uex, self.uey = s["ue"]
         self.g = s["g"]
+        self.gd = s.get("gd")
         p = s["p"]
         self.n = len(p) // 2
         self.px = [p[2 * j] / 10.0 for j in range(self.n)]
@@ -291,8 +292,23 @@ class Engine:
             self.proj_prev = max(self.proj_prev, best_a)
         return True
 
+    def gd_index(self, d):
+        import bisect
+        dd = d * 10.0
+        if dd <= self.gd[0]:
+            return 0
+        if dd >= self.gd[-1]:
+            return len(self.gd) - 1
+        return bisect.bisect_right(self.gd, dd) - 1
+
     def ghost_at(self, d):
         gn = len(self.g)
+        if self.gd is not None:
+            k = self.gd_index(d)
+            if k >= gn - 1:
+                return self.g[-1] / 10.0
+            x0, x1 = self.gd[k] / 10.0, self.gd[k + 1] / 10.0
+            return (self.g[k] + ((d - x0) / (x1 - x0) if x1 > x0 else 0.0) * (self.g[k + 1] - self.g[k])) / 10.0
         i = max(int(d / self.step), 0)
         if i >= gn - 1:
             return self.g[-1] / 10.0
@@ -314,8 +330,8 @@ class Engine:
                 lo = mid
             else:
                 hi = mid
-        d0 = lo * self.step
-        d1 = self.len if hi == gn - 1 else hi * self.step
+        d0 = self.gd[lo] / 10.0 if self.gd is not None else lo * self.step
+        d1 = self.gd[hi] / 10.0 if self.gd is not None else (self.len if hi == gn - 1 else hi * self.step)
         span = g[hi] - g[lo]
         return d0 + ((tt - g[lo]) / span if span > 0 else 0.0) * (d1 - d0)
 

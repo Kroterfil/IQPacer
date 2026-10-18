@@ -17,6 +17,9 @@ import os
 
 STEP = 25          # m entre puntos de la liebre (constante para todos los segmentos)
 SIMPLIFY_M = 2.0   # tolerancia Douglas-Peucker del recorrido
+COMPACT_MIN_M = 10000.0   # desde esta longitud (contrarrelojes) la liebre se guarda en puntos de ruptura, no en rejilla fija
+COMPACT_EPS_S = 1.0       # error maximo de la liebre comprimida, en segundos (mas puntos donde la velocidad cambia, pocos en llano)
+COMPACT_EPS_W = 2.0       # idem para los vatios medios
 DIR_M = 30.0       # metros usados para el rumbo de salida y de llegada
 KY = 110574.0      # m por grado de latitud (el Edge usa la misma constante)
 KX_EQ = 111320.0   # m por grado de longitud en el ecuador
@@ -51,6 +54,25 @@ def douglas_peucker(pts, eps):
     if dmax > eps:
         return douglas_peucker(pts[: idx + 1], eps)[:-1] + douglas_peucker(pts[idx:], eps)
     return [a, b]
+
+
+def keep_indices(xs, ys, eps):
+    """Indices de xs/ys que hay que guardar para que la interpolacion lineal entre ellos no se aparte mas de eps en y (Douglas-Peucker vertical)."""
+    keep = {0, len(xs) - 1}
+    pila = [(0, len(xs) - 1)]
+    while pila:
+        a, b = pila.pop()
+        if b - a < 2:
+            continue
+        worst, wi = 0.0, -1
+        for i in range(a + 1, b):
+            e = abs(ys[i] - (ys[a] + (xs[i] - xs[a]) * (ys[b] - ys[a]) / (xs[b] - xs[a])))
+            if e > worst:
+                worst, wi = e, i
+        if worst > eps:
+            keep.add(wi)
+            pila += [(a, wi), (wi, b)]
+    return sorted(keep)
 
 
 def path_length(pts):
@@ -120,6 +142,19 @@ def build(src):
         wy = [float(p_["avg_w"]) for p_ in rw]
         watts = [int(round(interp(wx, wy, d))) for d in grid]
 
+    gd = None
+    if length >= COMPACT_MIN_M:
+        # contrarreloj: la liebre (y los vatios) solo en los puntos donde cambia el ritmo; el reloj interpola entre ellos ("gd" = metros en decimetros)
+        tg = [v / 10.0 for v in ghost]
+        idx = set(keep_indices(grid, tg, COMPACT_EPS_S))
+        if watts:
+            idx |= set(keep_indices(grid, [float(v) for v in watts], COMPACT_EPS_W))
+        idx = sorted(idx)
+        gd = [int(round(grid[i] * 10)) for i in idx]
+        ghost = [ghost[i] for i in idx]
+        if watts:
+            watts = [watts[i] for i in idx]
+
     seg = {
         "lat0": round(lat0, 7),
         "lon0": round(lon0, 7),
@@ -131,6 +166,7 @@ def build(src):
         "u": list(u),                    # rumbo de salida
         "ue": list(ue),                  # rumbo de llegada
         "g": ghost,                      # décimas de segundo
+        **({"gd": gd} if gd else {}),     # solo contrarrelojes: distancia (dm) de cada punto de g y w; sin gd, g y w van cada "step" m
         **({"w": watts} if watts else {}),  # W medios de la liebre desde la salida (misma rejilla que "g")
         "p": [v for x, y in simple for v in (int(round(x * 10)), int(round(y * 10)))],  # decímetros
     }
