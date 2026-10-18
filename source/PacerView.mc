@@ -316,6 +316,17 @@ class PacerView extends WatchUi.DataField {
             }
         }
         if (_demo) {
+            if (System.getTimer() < _showUntil) {
+                // Prueba del cambio de pantalla: si sale este cartel 5 s al cambiar a la pantalla, el Edge dispara onShow
+                var nb = getBackgroundColor();
+                dc.setColor((nb == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK, nb);
+                dc.clear();
+                var dw = dc.getWidth();
+                var dh = dc.getHeight();
+                var tp = drawTitle(dc, dw, dh, "PANTALLA OK");
+                drawBig(dc, dw / 2, tp + (dh - tp) / 2, dw - 8, ((dh - tp) * 9) / 10, 0, "28.4", "");
+                return;
+            }
             drawDemo(dc);
             return;
         }
