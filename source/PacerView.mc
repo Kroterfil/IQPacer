@@ -28,6 +28,7 @@ const DEMO_RESULTADOS = 10;     // 5 tiempo, 6 vatios, 7 delta rojo, 8 delta ver
 const DEMO_TOTAL_S = DEMO_CAMPOS * DEMO_CAMPO_S + DEMO_RESULTADOS * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x34C759;   // verde vivo: vas por delante
 const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
+const SHOW_MS = 5000;            // ms que se enseña el dato de la actividad al cambiar a esta pantalla en pleno segmento
 const COLOR_OBJ = 0xFFFF00;     // amarillo PURO (el mas vivo que da la pantalla): aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
 
 class PacerView extends WatchUi.DataField {
@@ -46,6 +47,7 @@ class PacerView extends WatchUi.DataField {
     private var _wAvg = 0;        // W medios desde la salida (solo se muestra durante el segmento)
     private var _etaPrev = -1.0;  // ETA de la muestra anterior (para detectar que cruza 4:00, 3:00, 2:00 o 1:00)
     private var _objUntil = 0;    // System.getTimer() hasta el que se enseña el tiempo objetivo
+    private var _showUntil = 0;  // System.getTimer() hasta el que, tras cambiar a esta pantalla en pleno segmento, se enseña el dato de la actividad
     private var _objW = -1;       // W medios de la liebre hasta tu punto, fijados al llegar el ETA a un minuto exacto (-1 si no hay)
     private var _bigFonts = [
         Graphics.FONT_NUMBER_THAI_HOT,
@@ -297,8 +299,22 @@ class PacerView extends WatchUi.DataField {
         dc.setPenWidth(1);
     }
 
+    // Al volver a esta pantalla (cambio de pagina del Edge) en pleno segmento, 5 s con el dato normal de la actividad de este campo
+    // (V.MEDIA, ALT, DIST o VEL) y luego otra vez la liebre.
+    function onShow() as Void {
+        _showUntil = System.getTimer() + SHOW_MS;
+    }
+
     function onUpdate(dc as Graphics.Dc) as Void {
         var st = _engine.state;
+        if (!_demo && st == ST_RUN && System.getTimer() < _showUntil) {
+            var nb = getBackgroundColor();
+            dc.setColor((nb == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK, nb);
+            dc.clear();
+            if (drawActivityDatum(dc, dc.getWidth(), dc.getHeight())) {
+                return;
+            }
+        }
         if (_demo) {
             drawDemo(dc);
             return;
