@@ -467,9 +467,12 @@ def main():
                        if first is not None and first["final"] is not None
                        else f"SIN RESULTADO starts={eng.starts} state={eng.state}")
             else:
-                # un arranque de OTRO segmento vecino (salida legítima) no cuenta como fallo
-                good = eng.final is None or eng.cur != i
-                res = f"sin arranque: {'OK' if good else 'FALLO'} (starts={eng.starts}, final={eng.final})"
+                # un arranque de OTRO segmento vecino (salida legítima) no cuenta como fallo, ni tampoco que el motor quede ARMADO para este segmento al
+                # acabar el recorrido (cerca de su salida) sin llegar a arrancarlo: solo es fallo que ESTE segmento llegue a dar un resultado (arrancar y cancelarse solo, sin resultado, es el rechazo correcto).
+                # (Antes se miraba eng.cur al final: con un segmento vecino que arranco primero, daba fallo aunque este nunca arrancara.)
+                propios = [r for r in eng.runs if r["cur"] == i and r["final"] is not None]      # arrancar y cancelarse solo (sin resultado) es el rechazo correcto
+                good = not propios
+                res = f"sin arranque propio: {'OK' if good else 'FALLO'} (arranques propios={len(propios)}, starts={eng.starts}, final={eng.final})"
             ok &= good
             if not good:
                 _d = fallos.setdefault(os.path.basename(src), {"id": str(json.load(open(src)).get("id") or ""), "name": nm, "casos": []})
