@@ -30,6 +30,10 @@ class Engine:
         self.state = ST_IDLE
         self.cur = -1
         self.near = -1.0
+        self.alejandose = False         # la distancia a la salida lleva creciendo: te alejas (no se avisa ni se arma)
+        self._prev_near = -1.0
+        self._prev_i = -1
+        self._aleja_n = 0
         self.tick = 0
         self.buf = []
         self.starts = []
@@ -113,6 +117,19 @@ class Engine:
         self.total = self.g[-1] / 10.0
         return True
 
+    def reset_aprox(self):
+        self._prev_near, self._prev_i, self._aleja_n, self.alejandose = -1.0, -1, 0, False
+
+    def track_aprox(self, d):
+        """Acercarse o alejarse de la salida: cada medida (cada 5 s) mas lejos que la anterior (+2 m) suma un punto; con dos seguidos, te alejas."""
+        if self._prev_near >= 0:
+            if d > self._prev_near + 2.0:
+                self._aleja_n += 1
+            elif d < self._prev_near - 1.0:
+                self._aleja_n = 0
+        self._prev_near = d
+        self.alejandose = self._aleja_n >= 2
+
     def lx(self, lon): return (lon - self.lon0) * self.kx
     def ly(self, lat): return (lat - self.lat0) * self.ky
 
@@ -126,8 +143,12 @@ class Engine:
                     d = math.hypot((lon - e[1]) * kx, (lat - e[0]) * KY_M)
                     if bi < 0 or d < best:
                         best, bi = d, i
+                if bi != self._prev_i:
+                    self.reset_aprox()
+                    self._prev_i = bi
+                self.track_aprox(best)
                 self.near = best
-                if bi >= 0 and best < R_ARM and self.load(bi):
+                if bi >= 0 and best < R_ARM and not self.alejandose and self.load(bi):
                     self.state = ST_ARMED
                 self.buf_reset()
         elif self.state == ST_ARMED:
@@ -140,6 +161,7 @@ class Engine:
         elif self.state == ST_COOL:
             if gps_ok and math.hypot(self.lx(lon), self.ly(lat)) > R_DISARM:
                 self.state, self.near = ST_IDLE, -1.0
+                self.reset_aprox()
 
     def armed(self, gps_ok, lat, lon, now, odo):
         if not gps_ok:
@@ -151,6 +173,11 @@ class Engine:
             self.state = ST_IDLE
             return
         self.tick += 1
+        if self.tick % 5 == 0:
+            self.track_aprox(self.near)
+            if self.alejandose and self.near > 100.0:       # armado pero te alejas de la salida (y no estas encima): se suelta antes de los 400 m
+                self.state = ST_IDLE
+                return
         if self.tick % 2 == 0 and self.switch_if_closer(lat, lon):
             # salidas vecinas: el cruce de la linea puede ocurrir justo en este tick, asi que se sigue con
             # la muestra actual en las coordenadas del segmento nuevo (el bufer ya viene reproyectado)
@@ -173,6 +200,7 @@ class Engine:
             old = (self.lat0, self.lon0, self.kx, self.ky, list(self.buf))
             if self.load(bi):
                 self.near = best
+                self.reset_aprox()
                 # reproyectar las ultimas muestras al segmento nuevo (antes se borraban y se perdia la salida)
                 o_lat0, o_lon0, o_kx, o_ky, o_buf = old
                 self.buf = []

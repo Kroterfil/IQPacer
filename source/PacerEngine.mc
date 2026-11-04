@@ -40,6 +40,7 @@ class PacerEngine {
     // Estado público para la vista
     public var state = ST_IDLE;
     public var nearDist = -1.0;   // m a la salida más cercana (IDLE) o a la salida armada (ARMED)
+    public var alejandose = false; // la distancia a la salida lleva creciendo: te alejas (no se avisa ni se arma)
     public var delta = 0.0;       // s: + detrás de la liebre, - delante
     public var eta = 0.0;         // s hasta meta a ritmo de liebre desde tu posición
     public var tYou = 0.0;        // s desde la salida
@@ -54,6 +55,9 @@ class PacerEngine {
     // Índice de salidas
     private var _idx = null;
     private var _tick = 0;
+    private var _prevNear = -1.0;
+    private var _prevI = -1;
+    private var _alejaN = 0;
 
     // Segmento cargado
     private var _lat0 = 0.0d;
@@ -147,9 +151,32 @@ class PacerEngine {
                     unload();
                     state = ST_IDLE;
                     nearDist = -1.0;
+                    resetAprox();
                 }
             }
         }
+    }
+
+    // ---------- Acercarse / alejarse de la salida ----------
+
+    private function resetAprox() as Void {
+        _prevNear = -1.0;
+        _prevI = -1;
+        _alejaN = 0;
+        alejandose = false;
+    }
+
+    // Cada medida (cada 5 s) mas lejos que la anterior (+2 m) suma un punto; con dos seguidos, te alejas.
+    private function trackAprox(d as Float) as Void {
+        if (_prevNear >= 0.0) {
+            if (d > _prevNear + 2.0) {
+                _alejaN += 1;
+            } else if (d < _prevNear - 1.0) {
+                _alejaN = 0;
+            }
+        }
+        _prevNear = d;
+        alejandose = (_alejaN >= 2);
     }
 
     // ---------- IDLE ----------
@@ -168,8 +195,13 @@ class PacerEngine {
                 bestI = i;
             }
         }
+        if (bestI != _prevI) {
+            resetAprox();
+            _prevI = bestI;
+        }
+        trackAprox(best);
         nearDist = best;
-        if (bestI >= 0 && best < R_ARM) {
+        if (bestI >= 0 && best < R_ARM && !alejandose) {
             if (load(bestI)) {
                 state = ST_ARMED;
                 bufReset();
@@ -201,6 +233,7 @@ class PacerEngine {
             var oKy = _ky;
             if (load(bestI)) {
                 nearDist = best;
+                resetAprox();
                 for (var k = 0; k < _bn; k++) {
                     var nx = localX(oLon0 + _bx[k] / oKx);
                     var ny = localY(oLat0 + _by[k] / oKy);
@@ -230,6 +263,14 @@ class PacerEngine {
         }
         // Otra salida claramente más cercana (salidas vecinas): cambiar de segmento
         _tick += 1;
+        if (_tick % 5 == 0) {
+            trackAprox(nearDist);
+            if (alejandose && nearDist > 100.0) {   // armado pero te alejas de la salida (y no estas encima): se suelta antes de los 400 m
+                unload();
+                state = ST_IDLE;
+                return;
+            }
+        }
         if (_tick % 2 == 0 && switchIfCloser(lat, lon)) {
             // salidas vecinas: el cruce de la linea puede ocurrir justo en este tick; se sigue con la muestra
             // actual en las coordenadas del segmento nuevo (el bufer ya viene reproyectado)

@@ -10,7 +10,7 @@ const MODE_DELTA = 0;
 const MODE_ETA = 1;
 const MODE_WATTS = 2;
 const MODE_DIST = 3;   // DIST: durante el segmento, distancia que queda hasta el final; sin segmento, velocidad instantanea; al terminar, cara
-const NEAR_M = 500.0;   // m: por debajo, se muestra la distancia a la salida; por encima, el dato de la actividad
+const NEAR_M = 250.0;   // m: por debajo (y acercandote), se muestra la distancia a la salida; por encima o alejandote, el dato de la actividad
 // Fondo de color solo cuando te desvias mas de NEUTRO_S segundos de la liebre; dentro, fondo y numero nativos.
 // Colores vivos (los del sistema de Apple: rojo del boton de grabar, verde).
 const NEUTRO_S = 5;
@@ -367,7 +367,9 @@ class PacerView extends WatchUi.DataField {
         if (!active) {
             // Lejos de cualquier salida (>500 m) o sin segmento: dato de la actividad
             // (delta -> velocidad media; ETA -> desnivel acumulado). Cerca: distancia a la salida.
-            var far = (st == ST_COOL) || (st == ST_ABORT) || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M));
+            var far = (st == ST_COOL) || (st == ST_ABORT)
+                || (st == ST_IDLE && (_engine.nearDist < 0 || _engine.nearDist >= NEAR_M || _engine.alejandose))
+                || (st == ST_ARMED && (_engine.nearDist >= NEAR_M || _engine.alejandose));      // armado (para no perder la salida) pero aun lejos o alejandote: dato normal
             if (far && drawActivityDatum(dc, w, h)) {
                 return;
             }
