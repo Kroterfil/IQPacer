@@ -36,8 +36,8 @@ class Engine:
         self._prev_near = -1.0
         self._prev_i = -1
         self._aleja_n = 0
-        self._rech_i = -1
-        self._rech_n = 0
+        self._rj_i = -1
+        self._rj = None
         self.tick = 0
         self.buf = []
         self.starts = []
@@ -121,6 +121,14 @@ class Engine:
         self.total = self.g[-1] / 10.0
         return True
 
+    def _guardar_rj(self, i):
+        self._rj_i = i
+        self._rj = (self.lat0, self.lon0, self.kx, self.ky, self.ux, self.uy)
+
+    def _lado_rj(self, lat, lon):
+        lat0, lon0, kx, ky, ux, uy = self._rj
+        return (lon - lon0) * kx * ux + (lat - lat0) * ky * uy
+
     def reset_aprox(self):
         self._prev_near, self._prev_i, self._aleja_n, self.alejandose = -1.0, -1, 0, False
 
@@ -144,6 +152,8 @@ class Engine:
                 kx = KX_EQ * math.cos(math.radians(lat))
                 best, bi = -1, -1
                 for i, e in enumerate(self.idx):
+                    if i == self._rj_i and self._lado_rj(lat, lon) > -ARM_BEFORE:      # rechazado y sigues de su lado malo: no cuenta como el mas cercano
+                        continue
                     d = math.hypot((lon - e[1]) * kx, (lat - e[0]) * KY_M)
                     if bi < 0 or d < best:
                         best, bi = d, i
@@ -153,15 +163,16 @@ class Engine:
                 self.track_aprox(best)
                 self.near = best
                 if bi >= 0 and best < R_ARM and not self.alejandose:
-                    if bi == self._rech_i and self._rech_n < 6:      # rechazado hace poco por llegar por el lado contrario
-                        self._rech_n += 1
-                    elif self.load(bi):
+                    skip = False
+                    if bi == self._rj_i:                             # rechazado antes por llegar por el lado contrario: se mira de que lado estas sin recargarlo
+                        skip = self._lado_rj(lat, lon) > -ARM_BEFORE
+                    if not skip and self.load(bi):
                         s0 = self.lx(lon) * self.ux + self.ly(lat) * self.uy
                         if s0 > -ARM_BEFORE:                         # del lado del final del segmento: no se arma
-                            self._rech_i, self._rech_n = bi, 0
+                            self._guardar_rj(bi)
                         else:
                             self.state = ST_ARMED
-                            self._rech_i = -1
+                            self._rj_i = -1
                 self.buf_reset()
         elif self.state == ST_ARMED:
             self.armed(gps_ok, lat, lon, now, odo)
@@ -202,7 +213,7 @@ class Engine:
             self.start(tg, s, odo)
         elif s > WRONG_SIDE:                                         # pasaste la salida sin cruzarla en el sentido del segmento: llegas por el final
             self.state = ST_IDLE
-            self._rech_i, self._rech_n = self.cur, 0
+            self._guardar_rj(self.cur)
 
     def switch_if_closer(self, lat, lon):
         kx = KX_EQ * math.cos(math.radians(lat))

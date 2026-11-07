@@ -60,9 +60,14 @@ class PacerEngine {
     private var _prevNear = -1.0;
     private var _prevI = -1;
     private var _alejaN = 0;
-    private var _rechI = -1;
-    private var _curI = -1;
-    private var _rechN = 0;
+    private var _curI = -1;       // segmento cargado ahora
+    private var _rjI = -1;        // ultimo segmento rechazado por llegar por su final, y su geometria para saber de que lado estas sin recargarlo
+    private var _rjLat0 = 0.0d;
+    private var _rjLon0 = 0.0d;
+    private var _rjKx = 0.0;
+    private var _rjKy = 0.0;
+    private var _rjUx = 0.0;
+    private var _rjUy = 0.0;
 
     // Segmento cargado
     private var _lat0 = 0.0d;
@@ -191,6 +196,9 @@ class PacerEngine {
         var best = -1.0;
         var bestI = -1;
         for (var i = 0; i < _idx.size(); i++) {
+            if (i == _rjI && ((lon - _rjLon0) * _rjKx) * _rjUx + ((lat - _rjLat0) * _rjKy) * _rjUy > -ARM_BEFORE) {
+                continue;        // rechazado y sigues de su lado malo: no cuenta como el mas cercano
+            }
             var e = _idx[i];
             var dx = (lon - e[1].toDouble()) * kx;
             var dy = (lat - e[0].toDouble()) * KY_M;
@@ -207,21 +215,33 @@ class PacerEngine {
         trackAprox(best);
         nearDist = best;
         if (bestI >= 0 && best < R_ARM && !alejandose) {
-            if (bestI == _rechI && _rechN < 6) {      // rechazado hace poco por llegar por el lado contrario: no se vuelve a cargar a cada medida
-                _rechN += 1;
-            } else if (load(bestI)) {
+            var salta = false;
+            if (bestI == _rjI) {                      // rechazado antes por llegar por el lado contrario: se mira de que lado estas sin recargarlo
+                var s1 = ((lon - _rjLon0) * _rjKx) * _rjUx + ((lat - _rjLat0) * _rjKy) * _rjUy;
+                salta = (s1 > -ARM_BEFORE);
+            }
+            if (!salta && load(bestI)) {
                 var s0 = localX(lon) * _ux + localY(lat) * _uy;
                 if (s0 > -ARM_BEFORE) {               // estas del lado del final del segmento (p. ej. bajando la subida): no se arma
+                    guardarRj(bestI);
                     unload();
-                    _rechI = bestI;
-                    _rechN = 0;
                 } else {
                     state = ST_ARMED;
                     bufReset();
-                    _rechI = -1;
+                    _rjI = -1;
                 }
             }
         }
+    }
+
+    private function guardarRj(i) as Void {
+        _rjI = i;
+        _rjLat0 = _lat0;
+        _rjLon0 = _lon0;
+        _rjKx = _kx;
+        _rjKy = _ky;
+        _rjUx = _ux;
+        _rjUy = _uy;
     }
 
     // ---------- ARMED ----------
@@ -299,11 +319,9 @@ class PacerEngine {
         if (tg != null) {
             startRun(tg, s, odo);
         } else if (s > WRONG_SIDE) {        // ya pasaste la salida sin cruzarla en el sentido del segmento: llegas por el final, no entra
-            var i0 = _curI;
+            guardarRj(_curI);
             unload();
             state = ST_IDLE;
-            _rechI = i0;
-            _rechN = 0;
         }
     }
 
