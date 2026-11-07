@@ -19,6 +19,8 @@ ST_IDLE, ST_ARMED, ST_RUN, ST_DONE, ST_ABORT, ST_COOL = range(6)
 SWITCH_MARGIN = 10.0
 END_NEAR = 120.0
 R_ARM, R_DISARM, GATE_HALF, MIN_SPEED, COS_MAX, MAX_JUMP = 300.0, 400.0, 25.0, 1.5, 0.5, 50.0
+ARM_BEFORE = 20.0   # m: solo se arma al menos asi antes de la linea de salida (por el lado del que se llega yendo en el sentido del segmento)
+WRONG_SIDE = 60.0   # m: armado y ya mas alla de la salida sin cruzarla: llegas por el final, se suelta
 CONF_DIST, CONF_LAT, CONF_N, CONF_OK, OFF_LAT, OFF_SECS = 100.0, 20.0, 5, 4, 100.0, 15
 KX_EQ, KY_M = 111320.0, 110574.0
 
@@ -34,6 +36,8 @@ class Engine:
         self._prev_near = -1.0
         self._prev_i = -1
         self._aleja_n = 0
+        self._rech_i = -1
+        self._rech_n = 0
         self.tick = 0
         self.buf = []
         self.starts = []
@@ -148,8 +152,16 @@ class Engine:
                     self._prev_i = bi
                 self.track_aprox(best)
                 self.near = best
-                if bi >= 0 and best < R_ARM and not self.alejandose and self.load(bi):
-                    self.state = ST_ARMED
+                if bi >= 0 and best < R_ARM and not self.alejandose:
+                    if bi == self._rech_i and self._rech_n < 6:      # rechazado hace poco por llegar por el lado contrario
+                        self._rech_n += 1
+                    elif self.load(bi):
+                        s0 = self.lx(lon) * self.ux + self.ly(lat) * self.uy
+                        if s0 > -ARM_BEFORE:                         # del lado del final del segmento: no se arma
+                            self._rech_i, self._rech_n = bi, 0
+                        else:
+                            self.state = ST_ARMED
+                            self._rech_i = -1
                 self.buf_reset()
         elif self.state == ST_ARMED:
             self.armed(gps_ok, lat, lon, now, odo)
@@ -188,6 +200,9 @@ class Engine:
         tg = self.gate_cross(self.ux, self.uy)
         if tg is not None:
             self.start(tg, s, odo)
+        elif s > WRONG_SIDE:                                         # pasaste la salida sin cruzarla en el sentido del segmento: llegas por el final
+            self.state = ST_IDLE
+            self._rech_i, self._rech_n = self.cur, 0
 
     def switch_if_closer(self, lat, lon):
         kx = KX_EQ * math.cos(math.radians(lat))

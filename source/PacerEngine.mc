@@ -17,6 +17,8 @@ const ST_COOL = 5;     // espera a alejarse antes de rearmar
 const R_ARM = 300.0;       // m: radio para armar
 const R_DISARM = 400.0;    // m: radio para desarmar / salir de cooldown
 const END_NEAR = 120.0;     // m: la línea de meta solo vale a menos de esto del final (curvas que pasan junto a la meta)
+const ARM_BEFORE = 20.0;   // m: solo se arma estando al menos así ANTES de la línea de salida (por el lado del que se llega yendo en el sentido del segmento)
+const WRONG_SIDE = 60.0;   // m: armado y ya más allá de la salida sin haberla cruzado: llegas por el final (sentido contrario), se suelta
 const SWITCH_MARGIN = 10.0; // m: otra salida debe estar así de más cerca para cambiar de segmento
 const GATE_HALF = 25.0;    // m: semianchura de la línea de salida y llegada
 const MIN_SPEED = 1.5;     // m/s mínimos para aceptar el cruce
@@ -58,6 +60,9 @@ class PacerEngine {
     private var _prevNear = -1.0;
     private var _prevI = -1;
     private var _alejaN = 0;
+    private var _rechI = -1;
+    private var _curI = -1;
+    private var _rechN = 0;
 
     // Segmento cargado
     private var _lat0 = 0.0d;
@@ -202,9 +207,19 @@ class PacerEngine {
         trackAprox(best);
         nearDist = best;
         if (bestI >= 0 && best < R_ARM && !alejandose) {
-            if (load(bestI)) {
-                state = ST_ARMED;
-                bufReset();
+            if (bestI == _rechI && _rechN < 6) {      // rechazado hace poco por llegar por el lado contrario: no se vuelve a cargar a cada medida
+                _rechN += 1;
+            } else if (load(bestI)) {
+                var s0 = localX(lon) * _ux + localY(lat) * _uy;
+                if (s0 > -ARM_BEFORE) {               // estas del lado del final del segmento (p. ej. bajando la subida): no se arma
+                    unload();
+                    _rechI = bestI;
+                    _rechN = 0;
+                } else {
+                    state = ST_ARMED;
+                    bufReset();
+                    _rechI = -1;
+                }
             }
         }
     }
@@ -283,6 +298,12 @@ class PacerEngine {
         var tg = gateCross(_ux, _uy);
         if (tg != null) {
             startRun(tg, s, odo);
+        } else if (s > WRONG_SIDE) {        // ya pasaste la salida sin cruzarla en el sentido del segmento: llegas por el final, no entra
+            var i0 = _curI;
+            unload();
+            state = ST_IDLE;
+            _rechI = i0;
+            _rechN = 0;
         }
     }
 
@@ -681,6 +702,7 @@ class PacerEngine {
             return false;
         }
         var s = WatchUi.loadResource(res);
+        _curI = i;
         _lat0 = s["lat0"].toDouble();
         _lon0 = s["lon0"].toDouble();
         _kx = s["kx"].toFloat();
