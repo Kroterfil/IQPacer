@@ -27,7 +27,7 @@ const DEMO_RESULTADOS = 10;     // 5 tiempo, 6 vatios, 7 delta rojo, 8 delta ver
                                 // 11 V.MEDIA, 12 ALT, 13 DIST de la actividad, 14 velocidad
 const DEMO_TOTAL_S = DEMO_CAMPOS * DEMO_CAMPO_S + DEMO_RESULTADOS * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x00FF00;   // verde PURO (el mas vivo que da la pantalla, como la zona del Edge): vas por delante
-const COLOR_BEHIND = 0xFF3B30;  // rojo vivo: vas por detrás
+const COLOR_BEHIND = 0xFF0000;  // rojo PURO (el mas vivo que da la pantalla, como el verde): vas por detrás
 const SHOW_MS = 5000;            // ms que se enseña el dato de la actividad al cambiar a esta pantalla en pleno segmento
 const COLOR_OBJ = 0xFFFF00;     // amarillo PURO (el mas vivo que da la pantalla): aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
 
