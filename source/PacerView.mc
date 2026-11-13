@@ -27,6 +27,7 @@ const DEMO_RESULTADOS = 10;     // 5 tiempo, 6 vatios, 7 delta rojo, 8 delta ver
                                 // 11 V.MEDIA, 12 ALT, 13 DIST de la actividad, 14 velocidad
 const DEMO_TOTAL_S = DEMO_CAMPOS * DEMO_CAMPO_S + DEMO_RESULTADOS * DEMO_RESULTADO_S;
 const COLOR_AHEAD = 0x00FF00;   // verde PURO (el mas vivo que da la pantalla, como la zona del Edge): vas por delante
+const COLOR_ACTIVO = 0x00E5FF;  // cian: fondo de IQPacer cuando no hay rojo ni verde (distintivo de que esta activo)
 const COLOR_BEHIND = 0xFF0000;  // rojo PURO (el mas vivo que da la pantalla, como el verde): vas por detrás
 const SHOW_MS = 5000;            // ms que se enseña el dato de la actividad al cambiar a esta pantalla en pleno segmento
 const COLOR_OBJ = 0xFFFF00;     // amarillo PURO (el mas vivo que da la pantalla): aviso del tiempo objetivo en el ETA (resalta, no es ni delante ni detras)
@@ -151,8 +152,8 @@ class PacerView extends WatchUi.DataField {
         var slot = demoSlot();
         var phase = slot[0];
         var el = slot[1];
-        var nativeBg = getBackgroundColor();
-        var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+        var nativeBg = COLOR_ACTIVO;   // fondo propio de IQPacer cuando no hay rojo ni verde: se ve de un vistazo que esta activo
+        var fg = Graphics.COLOR_BLACK;
         var bg = nativeBg;
         var title = "TIEMPO";
         var digits = "4:37";
@@ -308,8 +309,8 @@ class PacerView extends WatchUi.DataField {
     function onUpdate(dc as Graphics.Dc) as Void {
         var st = _engine.state;
         if (!_demo && st == ST_RUN && System.getTimer() < _showUntil) {
-            var nb = getBackgroundColor();
-            dc.setColor((nb == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK, nb);
+            var nb = COLOR_ACTIVO;
+            dc.setColor(Graphics.COLOR_BLACK, nb);
             dc.clear();
             if (drawActivityDatum(dc, dc.getWidth(), dc.getHeight())) {
                 return;
@@ -318,8 +319,8 @@ class PacerView extends WatchUi.DataField {
         if (_demo) {
             if (System.getTimer() < _showUntil) {
                 // Prueba del cambio de pantalla: si sale este cartel 5 s al cambiar a la pantalla, el Edge dispara onShow
-                var nb = getBackgroundColor();
-                dc.setColor((nb == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK, nb);
+                var nb = COLOR_ACTIVO;
+                dc.setColor(Graphics.COLOR_BLACK, nb);
                 dc.clear();
                 var dw = dc.getWidth();
                 var dh = dc.getHeight();
@@ -330,8 +331,8 @@ class PacerView extends WatchUi.DataField {
             drawDemo(dc);
             return;
         }
-        var nativeBg = getBackgroundColor();
-        var fg = (nativeBg == Graphics.COLOR_BLACK) ? Graphics.COLOR_WHITE : Graphics.COLOR_BLACK;
+        var nativeBg = COLOR_ACTIVO;   // fondo propio de IQPacer cuando no hay rojo ni verde: se ve de un vistazo que esta activo
+        var fg = Graphics.COLOR_BLACK;
         var bg = nativeBg;
         var active = (st == ST_RUN || st == ST_DONE);
         var mostrandoObj = (_mode == MODE_ETA && st == ST_RUN && !_demo && System.getTimer() < _objUntil);
